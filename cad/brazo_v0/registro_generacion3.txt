@@ -1,0 +1,43 @@
+﻿== GRUPOS
+  grupo G0_hombro: 7 componentes
+  grupo G1_brazo: 13 componentes
+  grupo G2_cubito: 5 componentes
+  grupo G3_radio: 11 componentes
+  grupo G5_mano: 6 componentes
+== BRAZO (pose de referencia)
+  relación OK: hombro (rótula, 3 giros)
+  relación OK: codo: centro
+  relación OK: codo: bisagra
+  relación OK: antebrazo: cabeza del radio
+  relación OK: antebrazo: pivote cubital 1
+  relación OK: antebrazo: pivote cubital 2
+  relación OK: muñeca: centro flexión
+  relación OK: muñeca: bisagra flexión
+  relación OK: muñeca: centro desviación
+  relación OK: muñeca: bisagra desviación
+  G0: desplazamiento respecto a la pose pedida = 0.000 mm
+  G1: desplazamiento respecto a la pose pedida = 0.000 mm
+  G2: desplazamiento respecto a la pose pedida = 0.000 mm
+  G3: desplazamiento respecto a la pose pedida = 0.000 mm
+  G4: desplazamiento respecto a la pose pedida = 0.000 mm
+  G5: desplazamiento respecto a la pose pedida = 0.000 mm
+  MASA TOTAL: 1585 g; centro de masa [-13.454, -229.154, 2.292]
+== BRAZO (pose de foto)
+  relación OK: hombro (rótula, 3 giros)
+  relación OK: codo: centro
+  relación OK: codo: bisagra
+  relación OK: antebrazo: cabeza del radio
+  relación OK: antebrazo: pivote cubital 1
+  relación OK: antebrazo: pivote cubital 2
+  relación OK: muñeca: centro flexión
+  relación OK: muñeca: bisagra flexión
+  relación OK: muñeca: centro desviación
+  relación OK: muñeca: bisagra desviación
+  G0: desplazamiento respecto a la pose pedida = 0.000 mm
+  G1: desplazamiento respecto a la pose pedida = 0.000 mm
+  G2: desplazamiento respecto a la pose pedida = 0.000 mm
+  G3: desplazamiento respecto a la pose pedida = 0.000 mm
+  G4: desplazamiento respecto a la pose pedida = 0.000 mm
+  G5: desplazamiento respecto a la pose pedida = 0.000 mm
+  MASA TOTAL: 1585 g; centro de masa [20.919, -151.143, -129.167]
+== EXPORTAR

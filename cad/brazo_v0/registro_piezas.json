@@ -1,0 +1,250 @@
+{
+ "humero": {
+  "masa_g": 185.852,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "eje_codo": {
+  "masa_g": 12.045,
+  "color": [
+   0.62,
+   0.65,
+   0.7
+  ]
+ },
+ "cubito_gancho": {
+  "masa_g": 7.207,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "cubito_diafisis": {
+  "masa_g": 32.875,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "rodamiento_anular": {
+  "masa_g": 8.179,
+  "color": [
+   0.62,
+   0.65,
+   0.7
+  ]
+ },
+ "cabeza_radial": {
+  "masa_g": 14.227,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "radio_diafisis_1": {
+  "masa_g": 7.118,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "radio_diafisis_2": {
+  "masa_g": 23.955,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "radio_distal": {
+  "masa_g": 24.561,
+  "color": [
+   0.93,
+   0.9,
+   0.8
+  ]
+ },
+ "cruceta_muneca": {
+  "masa_g": 21.207,
+  "color": [
+   0.62,
+   0.65,
+   0.7
+  ]
+ },
+ "adaptador_mano": {
+  "masa_g": 38.772,
+  "color": [
+   0.8,
+   0.82,
+   0.85
+  ]
+ },
+ "mano_referencia": {
+  "masa_g": 258.96,
+  "color": [
+   0.55,
+   0.58,
+   0.62
+  ]
+ },
+ "montura_hombro": {
+  "masa_g": 251.958,
+  "color": [
+   0.36,
+   0.4,
+   0.46
+  ]
+ },
+ "ancla_tendon": {
+  "masa_g": 1.266,
+  "color": [
+   0.95,
+   0.55,
+   0.15
+  ]
+ },
+ "unidad_motora_S": {
+  "masa_g": 3.262,
+  "color": [
+   0.98,
+   0.62,
+   0.55
+  ]
+ },
+ "unidad_motora_M": {
+  "masa_g": 6.894,
+  "color": [
+   0.86,
+   0.27,
+   0.24
+  ]
+ },
+ "unidad_motora_L": {
+  "masa_g": 12.507,
+  "color": [
+   0.56,
+   0.1,
+   0.13
+  ]
+ },
+ "separador_P4": {
+  "masa_g": 7.31,
+  "color": [
+   0.3,
+   0.33,
+   0.38
+  ]
+ },
+ "aponeurosis_P4": {
+  "masa_g": 6.388,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "resorte_serie_P4": {
+  "masa_g": 8.361,
+  "color": [
+   0.2,
+   0.55,
+   0.6
+  ]
+ },
+ "guia_tendon_P4": {
+  "masa_g": 1.749,
+  "color": [
+   0.95,
+   0.75,
+   0.2
+  ]
+ },
+ "separador_P3": {
+  "masa_g": 4.405,
+  "color": [
+   0.3,
+   0.33,
+   0.38
+  ]
+ },
+ "aponeurosis_P3": {
+  "masa_g": 2.825,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "resorte_serie_P3": {
+  "masa_g": 4.592,
+  "color": [
+   0.2,
+   0.55,
+   0.6
+  ]
+ },
+ "guia_tendon_P3": {
+  "masa_g": 1.629,
+  "color": [
+   0.95,
+   0.75,
+   0.2
+  ]
+ },
+ "tendon_P4_059": {
+  "masa_g": 0.36,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "tendon_P4_077": {
+  "masa_g": 0.47,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "tendon_P4_029": {
+  "masa_g": 0.177,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "tendon_P3_020": {
+  "masa_g": 0.087,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "tendon_P4_088": {
+  "masa_g": 0.537,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ },
+ "tendon_P3_047": {
+  "masa_g": 0.205,
+  "color": [
+   0.96,
+   0.94,
+   0.86
+  ]
+ }
+}

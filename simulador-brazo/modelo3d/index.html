@@ -1,0 +1,398 @@
+<meta charset="utf-8">
+<title>Brazo biomimético v0</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: banco de trabajo. La escena 3D ocupa la columna izquierda y se queda fija; a la derecha, el tablero con
+   articulaciones, músculos y capas. En teléfono todo se apila con la escena arriba. */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #18232c; --muted: #5a6873; --line: #d2d9de;
+  --scene: #dfe5e9; --accent: #b3352e; --accent-soft: #f6dedb; --teal: #17686d; --teal-soft: #dcefef;
+  --ok: #1d7a4a; --warn: #9a6400;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11181d; --panel: #18222a; --ink: #e4ebef; --muted: #98a8b3; --line: #2c3a44;
+    --scene: #0c1216; --accent: #ef7e73; --accent-soft: #46211e; --teal: #5cc7cb; --teal-soft: #123638;
+    --ok: #5ccf93; --warn: #e8b04a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11181d; --panel: #18222a; --ink: #e4ebef; --muted: #98a8b3; --line: #2c3a44;
+  --scene: #0c1216; --accent: #ef7e73; --accent-soft: #46211e; --teal: #5cc7cb; --teal-soft: #123638;
+  --ok: #5ccf93; --warn: #e8b04a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 14px; }
+h1 { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+h2 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 0 0 10px; }
+.sub { color: var(--muted); margin: 0; }
+.datos { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.datos li { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 0.83rem; background: var(--panel);
+  font-variant-numeric: tabular-nums; }
+.datos b { font-weight: 600; }
+.banco { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.escena { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); background: var(--scene); border: 1px solid var(--line);
+  border-radius: 6px; overflow: hidden; }
+.escena canvas { display: block; width: 100%; height: min(78vh, 760px); min-height: 380px; touch-action: none; cursor: grab; }
+.escena canvas:active { cursor: grabbing; }
+.pie { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--panel); align-items: center; }
+.pie span { color: var(--muted); font-size: 0.82rem; margin-right: auto; }
+.aviso { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+.tablero { display: grid; gap: 14px; min-width: 0; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.pasos { margin: 0; padding-left: 20px; }
+.pasos li { margin-bottom: 4px; }
+button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--teal); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--teal-soft); border-color: var(--teal); color: var(--ink); }
+.fila-botones { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.art { display: grid; grid-template-columns: minmax(0, 1fr) 4.2em; gap: 2px 10px; align-items: center; margin-bottom: 9px; }
+.art label { font-size: 0.9rem; }
+.art output { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.art input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--teal); margin: 0; }
+.art .rango { grid-column: 1 / -1; display: flex; justify-content: space-between; color: var(--muted); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+.musculos { display: grid; gap: 5px; }
+.musc { display: grid; grid-template-columns: 2.7em minmax(0, 1fr) 5.4em; gap: 8px; align-items: center; text-align: left; width: 100%; padding: 6px 10px; }
+.musc .id { font-family: var(--font-display); font-weight: 600; color: var(--muted); font-size: 0.82rem; }
+.musc .nom { font-weight: 500; }
+.musc .acc { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 400; overflow-wrap: anywhere; }
+.musc .delta { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+.musc .delta.corto { color: var(--accent); font-weight: 600; }
+.musc .delta.largo { color: var(--teal); font-weight: 600; }
+.musc[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.ficha { margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 5px 5px 0; font-size: 0.9rem; }
+.ficha b { font-weight: 600; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 0.82rem; color: var(--muted); }
+.leyenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.nota { color: var(--muted); font-size: 0.84rem; margin: 10px 0 0; }
+.estado { font-size: 0.84rem; color: var(--ok); margin-left: 6px; }
+@media (max-width: 860px) {
+  .banco { grid-template-columns: minmax(0, 1fr); }
+  .escena { position: relative; top: 0; }
+  .escena canvas { height: 58vh; min-height: 320px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Brazo biomimético v0</h1>
+    <p class="sub">Modelo 3D del Experimento 1 generado en SolidWorks. Brazo derecho, del hombro a la muñeca.</p>
+  </header>
+  <ul class="datos" id="datos" aria-label="Datos del modelo"><li>Cargando el modelo…</li></ul>
+
+  <div class="banco">
+    <div class="escena">
+      <canvas id="lienzo" aria-label="Vista 3D del brazo. Arrastra para girar, rueda para acercar."></canvas>
+      <div class="aviso" id="aviso">Cargando piezas…</div>
+      <div class="pie">
+        <span>Arrastra para girar · rueda o pellizco para acercar · botón derecho para desplazar</span>
+        <button type="button" id="vistaFrente">Vista de frente</button>
+        <button type="button" id="vistaLado">De lado</button>
+        <button type="button" id="vistaAtras">Por detrás</button>
+      </div>
+    </div>
+
+    <div class="tablero">
+      <section aria-labelledby="t-uso">
+        <h2 id="t-uso">Cómo usarlo</h2>
+        <ol class="pasos">
+          <li>Gira la vista arrastrando sobre el brazo.</li>
+          <li>Mueve una barra de «Articulaciones» y mira cómo se mueve el brazo.</li>
+          <li>Toca un músculo para resaltarlo. El número de la derecha dice cuánto se acorta o se alarga su tendón en la pose actual.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="t-art">
+        <h2 id="t-art">Articulaciones</h2>
+        <div class="fila-botones">
+          <button type="button" id="poseRef">Brazo colgando</button>
+          <button type="button" id="poseFoto">Pose de ejemplo</button>
+          <button type="button" id="poseBoca">Mano a la boca</button>
+          <button type="button" id="poseMesa">Alcanzar al frente</button>
+        </div>
+        <div id="articulaciones"></div>
+      </section>
+
+      <section aria-labelledby="t-mus">
+        <h2 id="t-mus">Músculos y tendones</h2>
+        <div class="musculos" id="musculos"></div>
+        <div class="ficha" id="ficha" hidden></div>
+        <ul class="leyenda">
+          <li><i style="background:#8f1a21"></i>Unidad grande</li>
+          <li><i style="background:#db453d"></i>Unidad mediana</li>
+          <li><i style="background:#fa9e8c"></i>Unidad pequeña</li>
+          <li><i style="background:#338c99"></i>Resorte en serie</li>
+          <li><i style="background:#f2bf33"></i>Guía del tendón</li>
+          <li><i style="background:#f28c26"></i>Ancla en el hueso</li>
+        </ul>
+        <p class="nota">Cambio de largo del tendón entre su guía y su ancla, respecto al brazo colgando. Negativo: el músculo tiene que acortarse para llegar a esa pose. Los tendones se dibujan en línea recta entre sus puntos de paso; la envoltura sobre el hueso se añadirá en el simulador.</p>
+        <div class="fila-botones" style="margin:12px 0 0">
+          <button type="button" id="copiar">Copiar pose y tendones</button><span class="estado" id="copiado" role="status"></span>
+        </div>
+      </section>
+
+      <section aria-labelledby="t-capas">
+        <h2 id="t-capas">Capas</h2>
+        <div class="fila-botones" id="capas" style="margin:0"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var modelo, mallas, grupos = {}, mallasPorCapa = {}, mallasPorMusculo = {}, tendones = {}, largoRef = {};
+  var q = {}, sel = null, renderer, scene, camera, controls, sucio = true;
+  var CAPAS = [['huesos', 'Huesos'], ['musculos', 'Unidades motoras'], ['tendones', 'Tendones y anclas'], ['montura', 'Montura del hombro'], ['mano', 'Mano de referencia']];
+  var visible = { huesos: true, musculos: true, tendones: true, montura: true, mano: true };
+
+  function capaDe(pieza) {
+    if (pieza === 'montura_hombro') return 'montura';
+    if (pieza === 'mano_referencia' || pieza === 'adaptador_mano') return 'mano';
+    if (/^(tendon_|guia_|ancla_)/.test(pieza)) return 'tendones';
+    if (/^(unidad_|separador_|aponeurosis_|resorte_)/.test(pieza)) return 'musculos';
+    return 'huesos';
+  }
+  function bonito(n) { n = n.replace(/_/g, ' '); return n.charAt(0).toUpperCase() + n.slice(1); }
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function b64(s, Tipo) {
+    var bin = atob(s), n = bin.length, u8 = new Uint8Array(n);
+    for (var i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+    return new Tipo(u8.buffer);
+  }
+
+  Promise.all([fetch('modelo.json').then(function (r) { return r.json(); }), fetch('mallas.json').then(function (r) { return r.json(); })])
+    .then(function (r) { modelo = r[0]; mallas = r[1]; iniciar(); })
+    .catch(function (e) { $('aviso').textContent = 'No se pudieron cargar los archivos del modelo (modelo.json y mallas.json). ' + e; });
+
+  function iniciar() {
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas: $('lienzo'), antialias: true });
+    } catch (e) { $('aviso').textContent = 'Este navegador no puede mostrar gráficos 3D (WebGL).'; return; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(32, 1, 20, 8000);
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.12;
+    controls.addEventListener('change', function () { sucio = true; });
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x54606a, 0.95));
+    var sol = new THREE.DirectionalLight(0xffffff, 0.75); sol.position.set(500, 900, -700); scene.add(sol);
+    var relleno = new THREE.DirectionalLight(0xffffff, 0.3); relleno.position.set(-600, 200, 600); scene.add(relleno);
+    pintarFondo();
+    construir();
+    crearControles();
+    modelo.articulaciones.forEach(function (a) { q[a.id] = 0; });
+    aplicarPose(); medirReferencia();
+    ponerPose(modelo.pose_foto);
+    vista('frente');
+    $('aviso').hidden = true;
+    new ResizeObserver(ajustar).observe($('lienzo')); ajustar();
+    new MutationObserver(pintarFondo).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', pintarFondo);
+    (function bucle() { requestAnimationFrame(bucle); controls.update(); if (sucio) { renderer.render(scene, camera); sucio = false; } })();
+  }
+  function pintarFondo() { if (scene) { scene.background = new THREE.Color(cssVar('--scene') || '#dfe5e9'); sucio = true; } }
+  function ajustar() {
+    var c = $('lienzo'), w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); sucio = true;
+  }
+
+  function geometria(nombre) {
+    var m = mallas[nombre]; if (!m) return null;
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(b64(m.n, Int8Array), 3, true));
+    g.setIndex(new THREE.BufferAttribute(b64(m.i, m.i16 ? Uint16Array : Uint32Array), 1));
+    return g;
+  }
+
+  function construir() {
+    var geos = {}, mats = {}, masa = 0, nUnidades = 0;
+    modelo.grupos.forEach(function (g) {
+      var o = new THREE.Object3D(); o.name = g.id; grupos[g.id] = o;
+      o.position.fromArray(g.origen_en_padre);
+      (g.padre ? grupos[g.padre] : scene).add(o);
+      g.instancias.forEach(function (it) {
+        var info = modelo.piezas[it.pieza]; if (!info) return;
+        if (!(it.pieza in geos)) geos[it.pieza] = geometria(it.pieza);
+        if (!geos[it.pieza]) return;
+        var capa = capaDe(it.pieza), esMusculo = /^M\d\d$/.test(it.de);
+        var mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(info.color[0], info.color[1], info.color[2]),
+          roughness: capa === 'huesos' ? 0.7 : 0.45, metalness: capa === 'musculos' ? 0.25 : 0.05 });
+        if (it.pieza === 'mano_referencia') { mat.transparent = true; mat.opacity = 0.55; }
+        var mesh = new THREE.Mesh(geos[it.pieza], mat);
+        var R = it.R, t = it.t, M = new THREE.Matrix4();
+        M.set(R[0][0], R[0][1], R[0][2], t[0], R[1][0], R[1][1], R[1][2], t[1], R[2][0], R[2][1], R[2][2], t[2], 0, 0, 0, 1);
+        mesh.matrixAutoUpdate = false; mesh.matrix.copy(M);
+        o.add(mesh);
+        (mallasPorCapa[capa] = mallasPorCapa[capa] || []).push(mesh);
+        var idm = esMusculo ? it.de : (it.de.indexOf('ancla_') === 0 ? it.de.slice(6) : null);
+        if (idm) (mallasPorMusculo[idm] = mallasPorMusculo[idm] || []).push(mesh);
+        masa += info.masa_g || 0;
+        if (it.pieza.indexOf('unidad_motora') === 0) nUnidades++;
+      });
+    });
+    var geoCil = new THREE.CylinderGeometry(1, 1, 1, 10);
+    modelo.musculos.forEach(function (m) {
+      var segs = [];
+      for (var i = 0; i < m.ruta.length - 1; i++) {
+        var c = new THREE.Mesh(geoCil, new THREE.MeshStandardMaterial({ color: 0xf5f0db, roughness: 0.6 }));
+        scene.add(c); segs.push(c);
+      }
+      tendones[m.id] = segs;
+    });
+    $('datos').innerHTML = '<li><b>' + modelo.musculos.length + '</b> músculos</li><li><b>' + nUnidades + '</b> unidades motoras</li><li><b>' +
+      modelo.articulaciones.length + '</b> grados de libertad</li><li>Masa estimada <b>' + (masa / 1000).toFixed(2).replace('.', ',') +
+      ' kg</b></li><li>Codo <b>0–' + rango('codo_flexion')[1] + '°</b></li><li>Giro del antebrazo <b>0–' + rango('antebrazo_pronacion')[1] + '°</b></li>';
+  }
+  function rango(id) { return modelo.articulaciones.filter(function (a) { return a.id === id; })[0].rango; }
+
+  // ---------------------------------------------------------------- cinemática
+  function aplicarPose() {
+    var porHijo = {};
+    modelo.articulaciones.forEach(function (a) { (porHijo[a.hijo] = porHijo[a.hijo] || []).push(a); });
+    Object.keys(porHijo).forEach(function (h) {
+      var qt = new THREE.Quaternion();
+      porHijo[h].forEach(function (a) {
+        var eje = new THREE.Vector3().fromArray(a.eje).normalize();
+        qt.multiply(new THREE.Quaternion().setFromAxisAngle(eje, (q[a.id] || 0) * Math.PI / 180));
+      });
+      grupos[h].quaternion.copy(qt);
+    });
+    scene.updateMatrixWorld(true);
+    actualizarTendones();
+    sucio = true;
+  }
+  function puntosRuta(m) {
+    return m.ruta.map(function (r) { return grupos[r.grupo].localToWorld(new THREE.Vector3().fromArray(r.p)); });
+  }
+  function largoRuta(m) {
+    var p = puntosRuta(m), L = 0;
+    for (var i = 0; i < p.length - 1; i++) L += p[i].distanceTo(p[i + 1]);
+    return L;
+  }
+  function medirReferencia() { modelo.musculos.forEach(function (m) { largoRef[m.id] = largoRuta(m); }); }
+  var ARRIBA = new THREE.Vector3(0, 1, 0);
+  function actualizarTendones() {
+    modelo.musculos.forEach(function (m) {
+      var p = puntosRuta(m), segs = tendones[m.id], activo = sel === m.id, r = activo ? 2.2 : 1.2;
+      for (var i = 0; i < segs.length; i++) {
+        var a = p[i], b = p[i + 1], d = new THREE.Vector3().subVectors(b, a), L = d.length() || 0.001;
+        segs[i].position.copy(a).addScaledVector(d, 0.5);
+        segs[i].quaternion.setFromUnitVectors(ARRIBA, d.normalize());
+        segs[i].scale.set(r, L, r);
+        segs[i].visible = visible.tendones;
+        segs[i].material.color.set(activo ? 0xd23a30 : 0xf5f0db);
+      }
+      var el = $('d-' + m.id);
+      if (el && largoRef[m.id] !== undefined) {
+        var dl = largoRuta(m) - largoRef[m.id];
+        el.textContent = (Math.abs(dl) < 0.05 ? '0,0' : (dl > 0 ? '+' : '−') + Math.abs(dl).toFixed(1).replace('.', ',')) + ' mm';
+        el.className = 'delta' + (dl < -0.5 ? ' corto' : dl > 0.5 ? ' largo' : '');
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- controles
+  function crearControles() {
+    var cont = $('articulaciones');
+    modelo.articulaciones.forEach(function (a) {
+      var d = document.createElement('div'); d.className = 'art';
+      d.innerHTML = '<label for="s-' + a.id + '">' + a.nombre + '</label><output id="o-' + a.id + '" for="s-' + a.id + '">0°</output>' +
+        '<input type="range" id="s-' + a.id + '" min="' + a.rango[0] + '" max="' + a.rango[1] + '" step="1" value="0">' +
+        '<div class="rango"><span>' + a.rango[0] + '°</span><span>' + a.rango[1] + '°</span></div>';
+      cont.appendChild(d);
+      $('s-' + a.id).addEventListener('input', function (e) { q[a.id] = +e.target.value; $('o-' + a.id).textContent = q[a.id] + '°'; aplicarPose(); });
+    });
+    var lista = $('musculos');
+    modelo.musculos.forEach(function (m) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'musc'; b.id = 'b-' + m.id; b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = '<span class="id">' + m.id + '</span><span class="nom">' + bonito(m.nombre) + '<span class="acc">' + m.accion +
+        '</span></span><span class="delta" id="d-' + m.id + '">0,0 mm</span>';
+      b.addEventListener('click', function () { seleccionar(sel === m.id ? null : m.id); });
+      lista.appendChild(b);
+    });
+    var capas = $('capas');
+    CAPAS.forEach(function (c) {
+      var b = document.createElement('button'); b.type = 'button'; b.id = 'c-' + c[0]; b.textContent = c[1]; b.setAttribute('aria-pressed', 'true');
+      b.addEventListener('click', function () { visible[c[0]] = !visible[c[0]]; b.setAttribute('aria-pressed', String(visible[c[0]])); aplicarCapas(); });
+      capas.appendChild(b);
+    });
+    $('poseRef').addEventListener('click', function () { ponerPose({}); });
+    $('poseFoto').addEventListener('click', function () { ponerPose(modelo.pose_foto); });
+    $('poseBoca').addEventListener('click', function () { ponerPose({ hombro_flexion: 38, hombro_abduccion: 14, hombro_rotacion: 22, codo_flexion: 126, antebrazo_pronacion: 35, muneca_flexion: 12 }); });
+    $('poseMesa').addEventListener('click', function () { ponerPose({ hombro_flexion: 62, hombro_abduccion: 8, codo_flexion: 34, antebrazo_pronacion: 95, muneca_flexion: -18 }); });
+    $('vistaFrente').addEventListener('click', function () { vista('frente'); });
+    $('vistaLado').addEventListener('click', function () { vista('lado'); });
+    $('vistaAtras').addEventListener('click', function () { vista('atras'); });
+    $('copiar').addEventListener('click', copiar);
+  }
+  function ponerPose(p) {
+    modelo.articulaciones.forEach(function (a) {
+      var v = Math.max(a.rango[0], Math.min(a.rango[1], p[a.id] || 0));
+      q[a.id] = v; $('s-' + a.id).value = v; $('o-' + a.id).textContent = v + '°';
+    });
+    aplicarPose();
+  }
+  function aplicarCapas() {
+    Object.keys(mallasPorCapa).forEach(function (c) { mallasPorCapa[c].forEach(function (m) { m.visible = visible[c]; }); });
+    actualizarTendones(); sucio = true;
+  }
+  function seleccionar(id) {
+    sel = id;
+    modelo.musculos.forEach(function (m) {
+      $('b-' + m.id).setAttribute('aria-pressed', String(m.id === id));
+      (mallasPorMusculo[m.id] || []).forEach(function (mesh) {
+        mesh.material.emissive.set(m.id === id ? 0x7a1410 : 0x000000);
+        mesh.material.emissiveIntensity = m.id === id ? 0.55 : 0;
+      });
+    });
+    var f = $('ficha');
+    if (!id) { f.hidden = true; } else {
+      var m = modelo.musculos.filter(function (x) { return x.id === id; })[0];
+      var nombres = { L: 'grande', M: 'mediana', S: 'pequeña' };
+      f.hidden = false;
+      f.innerHTML = '<b>' + m.id + ' · ' + bonito(m.nombre) + '</b><br>Copia a: ' + m.copia_a + '.<br>Hace: ' + m.accion.toLowerCase() +
+        '.<br>Unidades motoras, en orden de activación: ' + m.unidades.slice().reverse().map(function (u) { return nombres[u]; }).join(', ') +
+        '.<br>Montado en: ' + ({ G0: 'la montura del hombro', G1: 'el húmero', G3: 'el radio' })[m.grupo] + '.';
+    }
+    actualizarTendones(); sucio = true;
+  }
+  function vista(cual) {
+    var c = new THREE.Vector3(40, -210, 0), d = 1250;
+    var dir = { frente: [0.45, 0.12, -1], lado: [1, 0.08, -0.12], atras: [0.4, 0.15, 1] }[cual];
+    var v = new THREE.Vector3().fromArray(dir).normalize().multiplyScalar(d);
+    camera.position.copy(c).add(v); controls.target.copy(c); controls.update(); sucio = true;
+  }
+  function copiar() {
+    var lineas = ['Brazo biomimético v0 · pose y tendones', '', 'Articulaciones:'];
+    modelo.articulaciones.forEach(function (a) { lineas.push('  ' + a.nombre + ': ' + q[a.id] + '°'); });
+    lineas.push('', 'Cambio de largo de cada tendón respecto al brazo colgando (mm):');
+    modelo.musculos.forEach(function (m) { lineas.push('  ' + m.id + ' ' + bonito(m.nombre) + ': ' + (largoRuta(m) - largoRef[m.id]).toFixed(1)); });
+    var texto = lineas.join('\n'), aviso = $('copiado');
+    var listo = function () { aviso.textContent = 'Copiado'; setTimeout(function () { aviso.textContent = ''; }, 2500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(listo).catch(function () { respaldo(texto); listo(); });
+    } else { respaldo(texto); listo(); }
+  }
+  function respaldo(texto) {
+    var t = document.createElement('textarea'); t.value = texto; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (e) { /* sin portapapeles */ }
+    document.body.removeChild(t);
+  }
+})();
+</script>

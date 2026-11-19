@@ -1,0 +1,1683 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador de brazo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: escena 3D con la lista de tareas encima y las teclas debajo; panel de pasos a la derecha; resultados al final. */
+:root {
+  --bg: #f3f5f6; --surface: #ffffff; --fg: #16212a; --muted: #56646f; --line: #d2dae0;
+  --scene: #e8edf0; --grid: #c2cdd4; --body: #9aa7b0;
+  --arm: #0e7479; --joint: #0a4f53; --target: #b87a10; --bar: #c22d78; --ok: #2e8b4f; --warn: #c2412b;
+  --accent: #0e7479; --accent-soft: #dff0f0; --accent-fg: #ffffff;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10171c; --surface: #172129; --fg: #e3eaee; --muted: #9babb5; --line: #2b3943;
+    --scene: #0c1216; --grid: #2a3741; --body: #51606b;
+    --arm: #56c4c8; --joint: #2e8f93; --target: #f0b545; --bar: #ff78b8; --ok: #5fd08a; --warn: #ff8a70;
+    --accent: #56c4c8; --accent-soft: #13353a; --accent-fg: #0c1216; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10171c; --surface: #172129; --fg: #e3eaee; --muted: #9babb5; --line: #2b3943;
+  --scene: #0c1216; --grid: #2a3741; --body: #51606b;
+  --arm: #56c4c8; --joint: #2e8f93; --target: #f0b545; --bar: #ff78b8; --ok: #5fd08a; --warn: #ff8a70;
+  --accent: #56c4c8; --accent-soft: #13353a; --accent-fg: #0c1216; color-scheme: dark;
+}
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.app { max-width: 1240px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 16px; }
+.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-size: 0.78rem; font-weight: 600; margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+p { margin: 0; }
+.lede { color: var(--muted); margin-top: 2px; max-width: 68ch; }
+.tabs { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.tabs button { font: inherit; font-weight: 600; padding: 8px 16px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+button:focus-visible, #view:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: default; }
+.layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.main { flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.panel { flex: 1 1 300px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* escena */
+.stage { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--scene); }
+.viewwrap { position: relative; --inset: 150px; }
+#view { display: block; width: 100%; touch-action: none; cursor: grab; }
+#view:active { cursor: grabbing; }
+.task { position: absolute; left: 10px; top: 10px; width: min(300px, calc(100% - 20px)); box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.86rem; pointer-events: none; display: flex; flex-direction: column; gap: 6px; }
+.taskhead { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.taskhead span { color: var(--muted); }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.checks li { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: start; }
+.tick { width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--muted); margin-top: 2px; }
+.checks li.ok .tick { background: var(--ok); border-color: var(--ok); }
+.checks li.ok .lbl { color: var(--muted); }
+.val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.activej { font-weight: 600; color: var(--accent); }
+.stagebtns { position: absolute; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: calc(100% - 330px); }
+.mini { font: inherit; font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.mini[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.mini.stop { border-color: var(--warn); color: var(--warn); }
+.inset { position: absolute; right: 10px; bottom: 10px; width: var(--inset); height: var(--inset); box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; pointer-events: none; }
+.inset span { position: absolute; left: 6px; top: 5px; font-size: 0.7rem; color: var(--muted); background: var(--surface); padding: 0 5px; border-radius: 4px; }
+.toast { position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - var(--inset) - 30px); box-sizing: border-box; background: var(--surface); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 10px; font-weight: 600; font-size: 0.88rem; pointer-events: none; }
+.toast.bad { border-color: var(--warn); color: var(--warn); }
+.toast.good { border-color: var(--ok); color: var(--ok); }
+.cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; pointer-events: none; }
+.covercard { pointer-events: auto; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; width: 100%; max-width: 430px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14); }
+.covercard p { font-size: 0.9rem; }
+.pause { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--scene); opacity: 0.92; font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; text-align: center; padding: 16px; cursor: pointer; }
+.eyebrow { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: inherit; font-weight: 600; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); }
+.btn.ghost { background: transparent; color: var(--accent); }
+.rate { display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; }
+.rate .seg button { flex: 1 1 0; min-width: 0; }
+.ratehint { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.74rem; }
+
+/* teclas */
+.deck { display: flex; flex-wrap: wrap; gap: 10px; }
+.kgroup { flex: 1 1 210px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.krow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.key { display: flex; align-items: center; gap: 8px; min-width: 0; font: inherit; font-size: 0.84rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; cursor: pointer; text-align: left; touch-action: none; user-select: none; -webkit-user-select: none; }
+.key.wide { grid-column: 1 / -1; }
+.key.down { background: var(--accent-soft); border-color: var(--accent); }
+kbd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.8rem; font-weight: 600; min-width: 1.5em; text-align: center; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; background: var(--surface); white-space: nowrap; }
+.items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; font-size: 0.8rem; }
+.items li { padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); }
+.items li.on { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.decknote { flex: 1 1 100%; font-size: 0.84rem; color: var(--muted); }
+
+/* panel */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cardhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 0.88rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.tut { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+.tut li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; }
+.tut li.ok .tick { background: var(--ok); border-color: var(--ok); }
+.tut li.ok span:last-child { color: var(--muted); }
+.stepper { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.stepper .grp { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding: 8px 8px 2px; }
+.stepper button { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; font: inherit; font-size: 0.84rem; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; color: var(--fg); cursor: pointer; }
+.stepper .num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.stepper button[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); }
+.stepper .state { color: var(--ok); font-size: 0.76rem; font-weight: 600; }
+.modes { display: flex; flex-direction: column; gap: 6px; }
+.modes button { text-align: left; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.modes button b { display: block; font-family: var(--font-display); }
+.modes button small { color: var(--muted); }
+.modes button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { flex: 1 1 auto; font: inherit; font-size: 0.86rem; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.note { font-size: 0.8rem; color: var(--muted); max-width: 90ch; }
+#sense { display: block; width: 100%; height: 160px; }
+#chart { display: block; width: 100%; height: 130px; }
+.mus { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 14px; }
+.mrow { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto 4.6em; gap: 6px; align-items: center; font-size: 0.82rem; padding: 2px 0; border-bottom: 1px solid var(--line); }
+.mrow .mid { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mrow .mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow .units { display: flex; gap: 3px; align-items: center; }
+.mrow .u { display: inline-block; border: 1px solid var(--muted); border-radius: 2px; background: transparent; }
+.mrow .u.S { width: 8px; height: 8px; } .mrow .u.M { width: 10px; height: 10px; } .mrow .u.L { width: 12px; height: 12px; }
+.mrow .u.on { background: var(--warn); border-color: var(--warn); }
+.mrow .dl { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.mrow.work .mname { font-weight: 600; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { color: var(--muted); font-weight: 600; font-size: 0.76rem; vertical-align: bottom; }
+td.none { color: var(--muted); }
+textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); padding: 8px; }
+@media (max-width: 680px) {
+  .task { position: static; width: auto; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+  .stagebtns { max-width: calc(100% - 20px); }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Simulador de brazo</h1>
+      <p class="lede">Lleva la mano virtual a cada objeto, gírala y ciérrala. Cada prueba cambia la forma de mandar el brazo, para medir cuál funciona mejor.</p>
+    </div>
+    <div class="tabs" role="group" aria-label="Forma de uso">
+      <button type="button" id="tabGuide" aria-pressed="true">Prueba guiada</button>
+      <button type="button" id="tabFree" aria-pressed="false">Práctica libre</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <div class="stage">
+        <div class="viewwrap" id="viewwrap">
+          <canvas id="view" aria-label="Vista 3D del brazo virtual y del objeto"></canvas>
+          <div class="stagebtns">
+            <button type="button" class="mini" id="btnAids" aria-pressed="true">Ayudas</button>
+            <button type="button" class="mini" id="btnView">Centrar vista</button>
+            <button type="button" class="mini" id="btnSkip" hidden>Saltar objeto</button>
+            <button type="button" class="mini stop" id="btnStop" hidden>Cancelar prueba</button>
+          </div>
+          <div class="inset"><span>Vista desde arriba</span></div>
+          <p class="toast" id="msg" role="status" hidden></p>
+          <div class="cover" id="cover">
+            <div class="covercard">
+              <p class="eyebrow" id="cvEyebrow"></p>
+              <h2 id="cvTitle"></h2>
+              <p id="cvText"></p>
+              <div class="rate" id="cvRate" hidden>
+                <span>¿Qué tan difícil fue?</span>
+                <div class="seg" role="group" aria-label="Dificultad de 1 a 5">
+                  <button type="button" id="rate1" aria-pressed="false">1</button>
+                  <button type="button" id="rate2" aria-pressed="false">2</button>
+                  <button type="button" id="rate3" aria-pressed="false">3</button>
+                  <button type="button" id="rate4" aria-pressed="false">4</button>
+                  <button type="button" id="rate5" aria-pressed="false">5</button>
+                </div>
+                <div class="ratehint"><span>Muy fácil</span><span>Muy difícil</span></div>
+              </div>
+              <div class="row">
+                <button type="button" class="btn" id="btnNext" hidden>Siguiente paso</button>
+                <button type="button" class="btn" id="btnStart">Empezar prueba</button>
+                <button type="button" class="btn ghost" id="btnPractice">Practicar sin medir</button>
+              </div>
+            </div>
+          </div>
+          <div class="pause" id="pause" hidden>En pausa. Haz clic aquí para seguir.</div>
+        </div>
+        <div class="task" id="task" hidden>
+          <div class="taskhead"><b id="hudTarget"></b><span id="hudTime"></span></div>
+          <ol class="checks">
+            <li id="ck1"><span class="tick"></span><span class="lbl"></span><span class="val"></span></li>
+            <li id="ck2"><span class="tick"></span><span class="lbl"></span><span class="val"></span></li>
+            <li id="ck3"><span class="tick"></span><span class="lbl"></span><span class="val"></span></li>
+          </ol>
+          <p class="activej" id="hudJoint" hidden></p>
+        </div>
+      </div>
+
+      <div class="deck" id="deck"></div>
+
+      <div class="card" id="senseCard" hidden>
+        <h2>Sensación del brazo</h2>
+        <canvas id="sense"></canvas>
+        <p class="note" id="senseInfo"></p>
+      </div>
+
+      <div class="card" id="musCard" hidden>
+        <div class="cardhead">
+          <h2>Músculos del brazo biomimético</h2>
+          <span class="note" id="musWork"></span>
+        </div>
+        <div class="mus" id="musList"></div>
+        <p class="note">Cada cuadro es una unidad motora, de la pequeña a la grande. Se encienden en ese orden cuando el músculo tiene que acortarse deprisa (principio del tamaño). El número es cuánto se ha acortado (−) o alargado (+) el tendón respecto al brazo colgando. Estimación por velocidad de acortamiento: todavía no cuenta el peso del brazo ni la carga.</p>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="card" id="modelCard">
+        <h2>Modelo de brazo</h2>
+        <div class="seg" role="group" aria-label="Modelo de brazo">
+          <button type="button" id="model_bio" aria-pressed="false" disabled>Biomimético v0</button>
+          <button type="button" id="model_simple" aria-pressed="true">Simple</button>
+        </div>
+        <p class="note" id="modelInfo">Cargando el modelo biomimético…</p>
+      </div>
+      <div id="panelGuide" class="stack">
+        <div class="card">
+          <p class="eyebrow" id="stRound"></p>
+          <h2 id="stTitle"></h2>
+          <p id="stWhy"></p>
+          <dl class="facts">
+            <dt>Tú</dt><dd id="stYou"></dd>
+            <dt>El brazo solo</dt><dd id="stAuto"></dd>
+            <dt>Condiciones</dt><dd id="stCond"></dd>
+          </dl>
+          <ul class="tut" id="tutList" hidden></ul>
+          <div class="row">
+            <button type="button" class="btn ghost" id="btnPrev">Anterior</button>
+            <button type="button" class="btn ghost" id="btnFwd">Siguiente</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Recorrido de la prueba</h2>
+          <ol class="stepper" id="stepper"></ol>
+        </div>
+      </div>
+
+      <div id="panelFree" class="stack" hidden>
+        <div class="card">
+          <h2>Modo de control</h2>
+          <div class="modes" role="group" aria-label="Modo de control">
+            <button type="button" id="modeA" aria-pressed="false"><b>Por turnos</b><small>Una articulación cada vez, como una prótesis clásica.</small></button>
+            <button type="button" id="modeB" aria-pressed="false"><b>Guiar la mano</b><small>Diriges posición y giro; el brazo reparte el movimiento.</small></button>
+            <button type="button" id="modeD" aria-pressed="false"><b>Guiar con ayuda</b><small>Diriges solo la posición; el brazo gira la mano.</small></button>
+            <button type="button" id="modeC" aria-pressed="false"><b>Elegir objetivo</b><small>Das la orden de ir; el brazo lleva y gira la mano.</small></button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Calidad de la señal</h2>
+          <div class="seg" role="group" aria-label="Calidad de la señal">
+            <button type="button" id="sig_ideal" aria-pressed="false">Ideal</button>
+            <button type="button" id="sig_real" aria-pressed="false">Con ruido</button>
+            <button type="button" id="sig_bad" aria-pressed="false">Muy degradada</button>
+          </div>
+          <p class="note" id="sigInfo"></p>
+        </div>
+        <div class="card">
+          <h2>Ver el brazo y sentirlo</h2>
+          <div class="seg" role="group" aria-label="Brazo visible u oculto">
+            <button type="button" id="arm_on" aria-pressed="false">Brazo visible</button>
+            <button type="button" id="arm_off" aria-pressed="false">Brazo oculto</button>
+          </div>
+          <div class="seg" role="group" aria-label="Nivel de sensación">
+            <button type="button" id="sens_none" aria-pressed="false">Sin sensación</button>
+            <button type="button" id="sens_coarse" aria-pressed="false">Gruesa</button>
+            <button type="button" id="sens_fine" aria-pressed="false">Fina</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="card" id="resultsCard">
+    <div class="cardhead">
+      <h2>Resultados</h2>
+      <div class="row">
+        <button type="button" class="btn" id="btnCopy">Copiar resultados</button>
+        <button type="button" class="btn ghost" id="btnClear">Borrar resultados</button>
+      </div>
+    </div>
+    <p class="note" id="copyMsg">Se guardan en este navegador. «Copiar resultados» los deja listos para pegarlos en el chat.</p>
+    <textarea id="copyOut" rows="9" readonly hidden aria-label="Resultados en texto"></textarea>
+    <h3>Con el brazo visible</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Señal</th><th>Modo</th><th>Objetos<br>agarrados</th><th>Tiempo por<br>objeto (s)</th><th>Rectitud<br>(1 = recta)</th><th>Articulaciones<br>a la vez</th><th>Agarres<br>fallidos</th><th>Frenos de<br>seguridad</th><th>Dificultad<br>(1–5)</th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+    <p class="note">Un objeto cuenta como agarrado si la mano se cierra a menos de 3 cm de su centro y girada a menos de 20° de su eje. El tiempo y la rectitud promedian solo los objetos agarrados. Rectitud: recorrido de la mano dividido entre la línea recta. Agarres fallidos y frenos de seguridad: veces por objeto.</p>
+    <h3>Sin ver el brazo</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Señal</th><th>Modo</th><th>Sensación</th><th>Dentro de<br>tolerancia</th><th>Error de<br>posición (cm)</th><th>Error de<br>giro (°)</th><th>Tiempo por<br>objeto (s)</th><th>Dificultad<br>(1–5)</th></tr></thead>
+        <tbody id="blindResults"></tbody>
+      </table>
+    </div>
+    <p class="note">Con el brazo oculto, tú decides cuándo crees que la mano está colocada y pulsas Enter. Se mide el error real en ese momento.</p>
+  </section>
+
+  <section class="card">
+    <h2>Velocidad de la mano en el último alcance</h2>
+    <canvas id="chart"></canvas>
+    <p class="note">Un movimiento natural dibuja una sola campana. Los movimientos por turnos dibujan varios picos separados.</p>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var DEG = Math.PI / 180;
+  var L1 = 0.30, L2 = 0.26;                       // brazo y antebrazo (m)
+  var TOL = 0.03, ANG_TOL = 20 * DEG, HOLD = 0.3; // tolerancias y tiempo dentro (s)
+  var FLOOR_Y = -0.75, H = 1 / 120, TIME_LIMIT = 60;
+
+  // La persona mira hacia -z; su derecha es +x; arriba es +y.
+  var JOINTS = [
+    { name: 'Hombro: adelante / atrás',  axis: [1, 0, 0], min: -50, max: 180 },
+    { name: 'Hombro: separar / acercar', axis: [0, 0, 1], min: -45, max: 170 },
+    { name: 'Hombro: rotar',             axis: [0, 1, 0], min: -80, max: 80 },
+    { name: 'Codo: doblar / estirar',    axis: [1, 0, 0], min: 0,   max: 145 },
+    { name: 'Antebrazo: girar',          axis: [0, 1, 0], min: -90, max: 90 },
+    { name: 'Muñeca: doblar',            axis: [1, 0, 0], min: -70, max: 80 },
+    { name: 'Muñeca: ladear',            axis: [0, 0, 1], min: -30, max: 30 }
+  ];
+  var N = JOINTS.length;
+  var ITEM_NAMES = JOINTS.map(function (j) { return j.name; }).concat(['Mano: abrir / cerrar']);
+  var Q_START = [10, 5, 0, 20, 0, 0, 0].map(function (d) { return d * DEG; });
+  var Q_REST  = [20, 10, 0, 60, 0, 0, 0].map(function (d) { return d * DEG; });
+  // posición del centro del objeto y dirección de su eje
+  var TARGETS = [
+    { p: [0.10, -0.20, -0.40], a: [0, 1, 0] },
+    { p: [0.30, 0.10, -0.35],  a: [1, 0, 0] },
+    { p: [-0.10, 0.05, -0.45], a: [0, 1, 0] },
+    { p: [0.20, -0.35, -0.30], a: [1, 1, 0] },
+    { p: [0.00, 0.25, -0.40],  a: [1, 0, 0] },
+    { p: [0.35, -0.10, -0.30], a: [0, 1, 0] },
+    { p: [-0.05, -0.25, -0.35], a: [-1, 1, 0] },
+    { p: [0.15, 0.15, -0.50],  a: [1, 0, 0] }
+  ];
+  var MODES = {
+    A: { label: 'Por turnos',      you: 'Mueves una articulación cada vez y pasas de una a otra.', auto: 'Nada. Así funciona una prótesis clásica.' },
+    B: { label: 'Guiar la mano',   you: 'Diriges la posición de la mano y el giro de su barra.',   auto: 'Reparte el movimiento entre las 7 articulaciones.' },
+    D: { label: 'Guiar con ayuda', you: 'Diriges solo la posición de la mano.',                    auto: 'Reparte el movimiento y además gira la mano según el objeto.' },
+    C: { label: 'Elegir objetivo', you: 'Das la orden de ir y cierras la mano.',                   auto: 'Lleva la mano al objeto y la gira. Tú corriges al final si hace falta.' }
+  };
+  var MODE_ORDER = ['A', 'B', 'D', 'C'];
+  var WHY = {
+    tut: 'Sin prisa y sin medir nada. Prueba cada tecla hasta marcar todas las casillas y agarra un objeto.',
+    r1: 'Pregunta de esta ronda: ¿cuánto ayuda que el brazo coordine solo sus articulaciones? La señal llega perfecta.',
+    r2: 'Pregunta de esta ronda: ¿aguanta el control cuando la señal llega con ruido y retraso, como una señal muscular real?',
+    r3: 'Pregunta de esta ronda: ¿cuánta sensación hace falta para colocar la mano sin verla? Solo ves el objeto y el panel de sensación.',
+    rep: 'Se repite una prueba del principio para medir cuánto mejoraste solo por la práctica.'
+  };
+  var STEPS = [
+    { id: 'tut', kind: 'tutorial', round: 'Preparación', why: WHY.tut, mode: 'B', sig: 'ideal' },
+    { id: 'r1A', round: 'Ronda 1 · Señal ideal', why: WHY.r1, mode: 'A', sig: 'ideal', n: 4 },
+    { id: 'r1B', round: 'Ronda 1 · Señal ideal', why: WHY.r1, mode: 'B', sig: 'ideal' },
+    { id: 'r1D', round: 'Ronda 1 · Señal ideal', why: WHY.r1, mode: 'D', sig: 'ideal' },
+    { id: 'r1C', round: 'Ronda 1 · Señal ideal', why: WHY.r1, mode: 'C', sig: 'ideal' },
+    { id: 'r2A', round: 'Ronda 2 · Señal con ruido', why: WHY.r2, mode: 'A', sig: 'real', n: 4 },
+    { id: 'r2B', round: 'Ronda 2 · Señal con ruido', why: WHY.r2, mode: 'B', sig: 'real' },
+    { id: 'r2D', round: 'Ronda 2 · Señal con ruido', why: WHY.r2, mode: 'D', sig: 'real' },
+    { id: 'r2C', round: 'Ronda 2 · Señal con ruido', why: WHY.r2, mode: 'C', sig: 'real' },
+    { id: 'r3f', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'fine' },
+    { id: 'r3c', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'coarse' },
+    { id: 'r3n', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'none' },
+    { id: 'rep', round: 'Control final', why: WHY.rep, mode: 'B', sig: 'ideal', rep: true }
+  ];
+  var TUT_ITEMS = [
+    ['x', 'Mueve la mano a izquierda y derecha (A / D)'],
+    ['z', 'Muévela adelante y atrás (W / S)'],
+    ['y', 'Súbela y bájala (↑ / ↓)'],
+    ['roll', 'Inclina la barra rosa (Q / E)'],
+    ['front', 'Apúntala al fondo y ponla de frente (← / →)'],
+    ['grip', 'Cierra y abre la mano (F)'],
+    ['grab', 'Agarra un objeto: mano cerca, barras alineadas y mano cerrada']
+  ];
+
+  // ---------- utilidades ----------
+  function $(id) { return document.getElementById(id); }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888'; }
+  function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+  function fmt(x, d) { return typeof x === 'number' && isFinite(x) ? x.toFixed(d) : '–'; }
+  function sc100(x, k) { return typeof x === 'number' ? x * k : NaN; }   // los promedios vacíos se guardan como null
+  function gauss() { var a = 1 - Math.random(), b = Math.random(); return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b); }
+  var textCache = {};
+  function setText(id, t) { if (textCache[id] !== t) { textCache[id] = t; $(id).textContent = t; } }
+  function solveLinear(A, b) {           // eliminación de Gauss con pivote parcial
+    var n = b.length, M = [], i, j, k;
+    for (i = 0; i < n; i++) { M.push(A[i].slice()); M[i].push(b[i]); }
+    for (i = 0; i < n; i++) {
+      var piv = i;
+      for (k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[piv][i])) piv = k;
+      var t = M[i]; M[i] = M[piv]; M[piv] = t;
+      var d = M[i][i] || 1e-12;
+      for (k = i + 1; k < n; k++) { var f = M[k][i] / d; for (j = i; j <= n; j++) M[k][j] -= f * M[i][j]; }
+    }
+    var x = new Array(n);
+    for (i = n - 1; i >= 0; i--) { var s = M[i][n]; for (j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / (M[i][i] || 1e-12); }
+    return x;
+  }
+
+  // ---------- escena ----------
+  var canvas = $('view');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(42, 4 / 3, 0.05, 20);
+  var topCam = new THREE.OrthographicCamera(-0.56, 0.56, 0.56, -0.56, 0.1, 10);
+  topCam.position.set(0.08, 2, -0.3); topCam.up.set(0, 0, -1); topCam.lookAt(0.08, 0, -0.3);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x556066, 0.9));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(1.5, 2.5, 2); scene.add(sun);
+
+  var mats = {
+    body: new THREE.MeshStandardMaterial({ roughness: 0.9 }),
+    arm: new THREE.MeshStandardMaterial({ roughness: 0.55 }),
+    joint: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
+    hl: new THREE.MeshStandardMaterial({ roughness: 0.4 }),
+    target: new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.6, roughness: 0.4 }),
+    core: new THREE.MeshStandardMaterial({ roughness: 0.4 }),
+    bar: new THREE.MeshStandardMaterial({ roughness: 0.4 }),
+    ghost: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55 }),
+    trail: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.6 }),
+    drop: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.7 }),
+    dropHand: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5 }),
+    giz: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55, depthTest: false })
+  };
+  var grid = null, colTarget = new THREE.Color(), colOk = new THREE.Color(), colBody = new THREE.Color(), colWarn = new THREE.Color();
+  function applyTheme() {
+    scene.background = new THREE.Color(cssVar('--scene'));
+    colBody.set(cssVar('--body')); colWarn.set(cssVar('--warn'));
+    mats.body.color.copy(colBody);
+    mats.arm.color.set(cssVar('--arm'));
+    mats.joint.color.set(cssVar('--joint'));
+    mats.hl.color.set(cssVar('--target')); mats.hl.emissive.set(cssVar('--target')); mats.hl.emissiveIntensity = 0.35;
+    colTarget.set(cssVar('--target')); colOk.set(cssVar('--ok'));
+    mats.target.color.copy(colTarget); mats.core.color.copy(colTarget); mats.ghost.color.copy(colTarget);
+    mats.bar.color.set(cssVar('--bar'));
+    mats.trail.color.set(cssVar('--bar'));
+    mats.drop.color.copy(colTarget);
+    mats.dropHand.color.set(cssVar('--arm'));
+    mats.giz.color.set(cssVar('--muted'));
+    if (grid) scene.remove(grid);
+    grid = new THREE.GridHelper(2.4, 24, cssVar('--grid'), cssVar('--grid'));
+    grid.position.set(0, FLOOR_Y, -0.2);
+    scene.add(grid);
+  }
+
+  // Cuerpo del sujeto. El freno de seguridad usa estas mismas medidas: una caja para el tronco y una esfera para la cabeza.
+  var BODY = { cx: -0.22, cy: -0.365, cz: 0, hx: 0.17, hy: 0.385, hz: 0.10, round: 0.07, headX: -0.22, headY: 0.18, headZ: 0, headR: 0.10 };
+  (function () {                         // tronco: caja de cantos redondeados, igual que la que usa el freno
+    var ix = BODY.hx - BODY.round, iy = BODY.hy - BODY.round, iz = BODY.hz - BODY.round;
+    var geo = new THREE.BoxGeometry(2 * BODY.hx, 2 * BODY.hy, 2 * BODY.hz, 12, 24, 8), pos = geo.attributes.position, v = new THREE.Vector3(), c = new THREE.Vector3();
+    for (var n = 0; n < pos.count; n++) {
+      v.fromBufferAttribute(pos, n); c.set(clamp(v.x, -ix, ix), clamp(v.y, -iy, iy), clamp(v.z, -iz, iz));
+      v.sub(c); if (v.lengthSq() > 1e-12) v.setLength(BODY.round); v.add(c);
+      pos.setXYZ(n, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    var torso = new THREE.Mesh(geo, mats.body); torso.position.set(BODY.cx, BODY.cy, BODY.cz); scene.add(torso);
+  })();
+  var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.08, 16), mats.body); neck.position.set(BODY.headX, 0.05, 0); scene.add(neck);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(BODY.headR, 24, 16), mats.body); head.position.set(BODY.headX, BODY.headY, 0); scene.add(head);
+  function sdf(x, y, z) {                // distancia a la superficie del cuerpo (negativa por dentro)
+    var R = BODY.round, qx = Math.abs(x - BODY.cx) - BODY.hx + R, qy = Math.abs(y - BODY.cy) - BODY.hy + R, qz = Math.abs(z - BODY.cz) - BODY.hz + R;
+    var ox = Math.max(qx, 0), oy = Math.max(qy, 0), oz = Math.max(qz, 0);
+    var box = Math.sqrt(ox * ox + oy * oy + oz * oz) + Math.min(Math.max(qx, qy, qz), 0) - R;
+    var dx = x - BODY.headX, dy = y - BODY.headY, dz = z - BODY.headZ;
+    return Math.min(box, Math.sqrt(dx * dx + dy * dy + dz * dz) - BODY.headR);
+  }
+
+  // cadena del brazo
+  function segment(len, r1, r2) { var m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 20), mats.arm); m.position.y = -len / 2; return m; }
+  function ball(r) { return new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), mats.joint); }
+  var g = [], axes = [], i;
+  for (i = 0; i < N; i++) { g.push(new THREE.Group()); axes.push(new THREE.Vector3().fromArray(JOINTS[i].axis)); }
+  scene.add(g[0]); g[0].add(g[1]); g[1].add(g[2]);
+  var ballShoulder = ball(0.05), ballElbow = ball(0.04), ballWrist = ball(0.028);
+  var segUpper = segment(L1, 0.042, 0.036), segLower = segment(L2, 0.034, 0.026);
+  g[2].add(ballShoulder); g[2].add(segUpper);
+  var elbow = new THREE.Group(); elbow.position.y = -L1; g[2].add(elbow);
+  elbow.add(g[3]); g[3].add(g[4]);
+  g[3].add(ballElbow); g[4].add(segLower);
+  var wrist = new THREE.Group(); wrist.position.y = -L2; g[4].add(wrist);
+  wrist.add(g[5]); g[5].add(g[6]);
+  g[5].add(ballWrist);
+  // mano: palma, dedos que se cierran, pulgar y barra que marca el eje de agarre (de pulgar a meñique)
+  var palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.07, 0.026), mats.arm); palm.position.y = -0.035; g[6].add(palm);
+  var fingers = new THREE.Group(); fingers.position.y = -0.07; g[6].add(fingers);
+  var fingerBox = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.02), mats.arm); fingerBox.position.y = -0.03; fingers.add(fingerBox);
+  var thumb = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.045, 0.02), mats.joint); thumb.position.set(0.046, -0.03, -0.014); g[6].add(thumb);
+  var ee = new THREE.Object3D(); ee.position.set(0, -0.065, -0.03); g[6].add(ee);
+  var gripBar = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 10), mats.bar); gripBar.rotation.z = Math.PI / 2; ee.add(gripBar);
+  var ITEM_MESH = [ballShoulder, ballShoulder, ballShoulder, ballElbow, ballElbow, ballWrist, ballWrist, fingerBox];
+
+  // Puntos del brazo que vigila el freno de seguridad: cada uno es una esfera de radio r. «up» = articulaciones que lo mueven.
+  var SAMPLES = [
+    { parent: 2, y: -0.5 * L1, r: 0.038, up: 3 }, { parent: 2, y: -0.75 * L1, r: 0.038, up: 3 }, { parent: 2, y: -L1, r: 0.040, up: 3 },
+    { parent: 4, y: -0.25 * L2, r: 0.033, up: 5 }, { parent: 4, y: -0.5 * L2, r: 0.032, up: 5 }, { parent: 4, y: -0.75 * L2, r: 0.030, up: 5 }, { parent: 4, y: -L2, r: 0.030, up: 5 },
+    { parent: 6, y: -0.04, r: 0.042, up: 7 }, { parent: 6, y: -0.10, r: 0.030, up: 7 }
+  ];
+  var HAND_FIRST = 7;
+  var sp = [], sc = [];
+  SAMPLES.forEach(function (s) { s.obj = new THREE.Object3D(); s.obj.position.y = s.y; g[s.parent].add(s.obj); sp.push(new THREE.Vector3()); sc.push(1); });
+
+  // ---------- brazo biomimético v0 (modelo generado en SolidWorks, archivos en modelo3d/) ----------
+  // Con este modelo activo, la cadena usa su geometría real: el radio gira sobre su propio eje inclinado (de la cabeza
+  // del radio a la cabeza del cúbito), la muñeca queda donde está en el modelo y los topes son los del diseño.
+  var bio = false, bioData = null, bioRoot = new THREE.Group(), bioCont = {}, bioUnits = {}, bioTendons = {}, bioRef = {}, bioLen = {}, bioVel = {}, bioOn = {};
+  var BIO_MAP = ['hombro_flexion', 'hombro_abduccion', 'hombro_rotacion', 'codo_flexion', 'antebrazo_pronacion', 'muneca_flexion', 'muneca_desviacion'];
+  var BIO_PARENT = { G1: 2, G2: 3, G3: 4, G4: 5, G5: 6 };
+  var SIMPLE_LIM = JOINTS.map(function (j) { return [j.min, j.max]; });
+  var bioGeo = { p1: new THREE.Vector3(), axis: new THREE.Vector3(0, 1, 0), wrist: new THREE.Vector3(0, -L2, 0) };
+  var HAND_DY = -0.027;                  // la mano empieza tras la brida del adaptador
+  bioRoot.visible = false; scene.add(bioRoot);
+
+  // objeto, guías y estela
+  var targetMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.17, 24), mats.target);
+  targetMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 8), mats.core));
+  targetMesh.visible = false; scene.add(targetMesh);
+  // barra guía: copia del eje del objeto dibujada sobre la mano
+  var ghost = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.19, 12), mats.ghost); ghost.visible = false; scene.add(ghost);
+  // dónde cree la cámara que está el objeto (modos con ayuda, señal no ideal)
+  var estMesh = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), mats.arm); estMesh.visible = false; scene.add(estMesh);
+  function lineOf(mat, n) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    geo.setDrawRange(0, 0);
+    var l = new THREE.Line(geo, mat); l.frustumCulled = false; scene.add(l); return l;
+  }
+  var TRAIL_MAX = 4000;
+  var trail = lineOf(mats.trail, TRAIL_MAX), trailN = 0;
+  var dropT = lineOf(mats.drop, 2), dropH = lineOf(mats.dropHand, 2);
+  function setDrop(line, p) {
+    var a = line.geometry.attributes.position.array;
+    a[0] = p.x; a[1] = p.y; a[2] = p.z; a[3] = p.x; a[4] = FLOOR_Y; a[5] = p.z;
+    line.geometry.attributes.position.needsUpdate = true; line.geometry.setDrawRange(0, 2);
+  }
+  function trailReset() { trailN = 0; trail.geometry.setDrawRange(0, 0); }
+  function trailPush(p) {
+    if (trailN >= TRAIL_MAX) return;
+    var a = trail.geometry.attributes.position.array;
+    a[trailN * 3] = p.x; a[trailN * 3 + 1] = p.y; a[trailN * 3 + 2] = p.z; trailN++;
+    trail.geometry.attributes.position.needsUpdate = true; trail.geometry.setDrawRange(0, trailN);
+  }
+  // ayuda visual: tres ejes sobre la mano con la tecla que mueve en cada sentido
+  var giz = new THREE.Group(); giz.visible = false; scene.add(giz);
+  (function () {
+    var R = 0.115, geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-R, 0, 0, R, 0, 0, 0, -R, 0, 0, R, 0, 0, 0, -R, 0, 0, R]), 3));
+    var ls = new THREE.LineSegments(geo, mats.giz); ls.renderOrder = 9; giz.add(ls);
+    function cap(txt, x, y, z) {
+      var c = document.createElement('canvas'); c.width = c.height = 64;
+      var k = c.getContext('2d');
+      k.fillStyle = '#ffffff'; k.strokeStyle = '#3a4a55'; k.lineWidth = 4;
+      k.beginPath(); k.moveTo(18, 8); k.arcTo(56, 8, 56, 56, 10); k.arcTo(56, 56, 8, 56, 10); k.arcTo(8, 56, 8, 8, 10); k.arcTo(8, 8, 56, 8, 10); k.closePath(); k.fill(); k.stroke();
+      k.fillStyle = '#16212a'; k.font = '600 30px "Segoe UI", system-ui, sans-serif'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(txt, 32, 34);
+      var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true, opacity: 0.92 }));
+      s.scale.set(0.05, 0.05, 1); s.position.set(x, y, z); s.renderOrder = 10; giz.add(s);
+    }
+    var P = R + 0.03;
+    cap('A', -P, 0, 0); cap('D', P, 0, 0); cap('W', 0, 0, -P); cap('S', 0, 0, P); cap('↑', 0, P, 0); cap('↓', 0, -P, 0);
+  })();
+
+  // ---------- cinemática ----------
+  var q = Q_START.slice(), grip = 0, gripTarget = 0;
+  var hx = new THREE.Vector3(), hy = new THREE.Vector3(), hz = new THREE.Vector3();
+  var jo = [], ja = [], framesOk = false;
+  for (i = 0; i < N; i++) { jo.push(new THREE.Vector3()); ja.push(new THREE.Vector3()); }
+  function setPose() {
+    for (var k = 0; k < N; k++) g[k].quaternion.setFromAxisAngle(axes[k], q[k]);
+    fingers.rotation.x = grip * 1.6;
+    g[0].updateMatrixWorld(true);
+    framesOk = false;
+  }
+  function frames() {                    // posición y eje de cada articulación en el mundo
+    if (framesOk) return;
+    for (var k = 0; k < N; k++) { jo[k].setFromMatrixPosition(g[k].matrixWorld); ja[k].copy(axes[k]).transformDirection(g[k].matrixWorld); }
+    framesOk = true;
+  }
+  function handPos(out) { return (out || new THREE.Vector3()).setFromMatrixPosition(ee.matrixWorld); }
+  function handAxes() { ee.matrixWorld.extractBasis(hx, hy, hz); }   // hx = eje de agarre
+  // Error de giro respecto a un eje: ángulo y vector de rotación necesario (el signo del eje no importa).
+  var tmpE = new THREE.Vector3();
+  function alignTo(axis) {
+    handAxes();
+    var d = hx.dot(axis), s = d >= 0 ? 1 : -1;
+    tmpE.crossVectors(hx, axis).multiplyScalar(s);
+    return { ang: Math.acos(Math.min(1, Math.abs(d))), ey: tmpE.dot(hy), ez: tmpE.dot(hz), wx: tmpE.x, wy: tmpE.y, wz: tmpE.z };
+  }
+  function jacobian(pe) {
+    frames();
+    var Jv = [[], [], []], Jw = [[], [], []];
+    for (var k = 0; k < N; k++) {
+      var rx = pe.x - jo[k].x, ry = pe.y - jo[k].y, rz = pe.z - jo[k].z, a = ja[k];
+      Jv[0][k] = a.y * rz - a.z * ry; Jv[1][k] = a.z * rx - a.x * rz; Jv[2][k] = a.x * ry - a.y * rx;
+      Jw[0][k] = a.x; Jw[1][k] = a.y; Jw[2][k] = a.z;
+    }
+    return { v: Jv, w: Jw };
+  }
+
+  // ---------- freno de seguridad: el brazo no puede entrar en el cuerpo ----------
+  var C_MIN = 0.008, C_SLIDE = 0.035, D_REP = 0.06, K_REP = 8, C_ROW = 0.025, K_ROW = 8;
+  var clearNow = 1, guardHit = false;
+  function scan() {                      // separación mínima entre el brazo y el cuerpo (m)
+    var m = 1e9;
+    for (var s = 0; s < SAMPLES.length; s++) {
+      if (SAMPLES[s].bio && !bio) { sc[s] = 1; continue; }
+      sp[s].setFromMatrixPosition(SAMPLES[s].obj.matrixWorld);
+      sc[s] = sdf(sp[s].x, sp[s].y, sp[s].z) - SAMPLES[s].r;
+      if (sc[s] < m) m = sc[s];
+    }
+    return m;
+  }
+  var nrm = new THREE.Vector3();
+  function normalAt(p) {                 // dirección que aleja del cuerpo
+    var e = 1e-3;
+    nrm.set(sdf(p.x + e, p.y, p.z) - sdf(p.x - e, p.y, p.z), sdf(p.x, p.y + e, p.z) - sdf(p.x, p.y - e, p.z), sdf(p.x, p.y, p.z + e) - sdf(p.x, p.y, p.z - e));
+    if (nrm.lengthSq() < 1e-12) nrm.set(1, 0, 0);
+    return nrm.normalize();
+  }
+  // Empuje suave: velocidad articular que aleja del cuerpo los puntos que se acercan demasiado.
+  function repel() {
+    var out = [0, 0, 0, 0, 0, 0, 0];
+    for (var s = 0; s < SAMPLES.length; s++) {
+      if (sc[s] >= D_REP) continue;
+      var n = normalAt(sp[s]), w = K_REP * (D_REP - sc[s]) / D_REP;
+      for (var k = 0; k < SAMPLES[s].up; k++) {
+        var rx = sp[s].x - jo[k].x, ry = sp[s].y - jo[k].y, rz = sp[s].z - jo[k].z, a = ja[k];
+        out[k] += w * ((a.y * rz - a.z * ry) * n.x + (a.z * rx - a.x * rz) * n.y + (a.x * ry - a.y * rx) * n.z);
+      }
+    }
+    return out;
+  }
+  // Si la mano está muy cerca del cuerpo, se quita de la orden la parte que la acercaría más: la mano resbala.
+  function slide(v) {
+    for (var s = HAND_FIRST; s < SAMPLES.length; s++) {
+      if (sc[s] >= C_SLIDE) continue;
+      var n = normalAt(sp[s]), vn = v.dot(n);
+      if (vn < 0) v.addScaledVector(n, -vn * (1 - clamp((sc[s] - C_MIN) / (C_SLIDE - C_MIN), 0, 1)));
+    }
+    return v;
+  }
+  // Freno duro: aplica el paso solo si no deja al brazo más dentro de la zona prohibida.
+  function safeMove(dq, dt) {
+    var q0 = q.slice(), c0 = clearNow, k, lo, hi;
+    for (k = 0; k < N; k++) { lo = JOINTS[k].min * DEG; hi = JOINTS[k].max * DEG; q[k] = clamp(q0[k] + dq[k] * dt, lo, hi); }
+    setPose();
+    var c1 = scan();
+    if (c1 >= C_MIN || c1 >= c0 - 1e-7) clearNow = c1;
+    else {
+      var want = q.slice(), cPrev = c0;
+      q = q0.slice();
+      for (k = 0; k < N; k++) {
+        if (want[k] === q0[k]) continue;
+        q[k] = want[k]; setPose();
+        var c = scan();
+        if (c >= C_MIN || c >= cPrev - 1e-7) cPrev = c; else q[k] = q0[k];
+      }
+      setPose(); clearNow = scan(); guardHit = true;
+    }
+    var moved = [];
+    for (k = 0; k < N; k++) moved.push((q[k] - q0[k]) / dt);
+    return moved;
+  }
+
+  // Capa 2: convierte la velocidad deseada de la mano (y, si se pide, su giro) en velocidades de las 7 articulaciones.
+  // Mínimos cuadrados amortiguados; en el espacio nulo, postura cómoda y empuje para alejarse del cuerpo; bloqueo en los topes.
+  var LAMBDA2 = 0.05 * 0.05, K_NULL = 1.5, QD_MAX = 220 * DEG, W_ROT = 0.2;
+  var qAttract = Q_REST;                 // postura hacia la que tira el espacio nulo
+  var tmpP = new THREE.Vector3();
+  function solve(v, w) {
+    var J = jacobian(handPos(tmpP)), rows = [J.v[0], J.v[1], J.v[2]], x = [v.x, v.y, v.z], k, r, c;
+    if (w) {
+      handAxes();
+      var r4 = [], r5 = [];
+      for (k = 0; k < N; k++) {
+        r4.push(W_ROT * (hy.x * J.w[0][k] + hy.y * J.w[1][k] + hy.z * J.w[2][k]));
+        r5.push(W_ROT * (hz.x * J.w[0][k] + hz.y * J.w[1][k] + hz.z * J.w[2][k]));
+      }
+      rows.push(r4, r5); x.push(W_ROT * w[0], W_ROT * w[1]);
+    }
+    // Si algún punto del brazo está muy cerca del cuerpo, alejarlo pasa a ser una tarea más, junto a la de la mano.
+    var sMin = 0;
+    for (k = 1; k < SAMPLES.length; k++) if (sc[k] < sc[sMin]) sMin = k;
+    if (sc[sMin] < C_ROW) {
+      var nb = normalAt(sp[sMin]), r6 = [];
+      for (k = 0; k < N; k++) {
+        if (k >= SAMPLES[sMin].up) { r6.push(0); continue; }
+        var ax = sp[sMin].x - jo[k].x, ay = sp[sMin].y - jo[k].y, az = sp[sMin].z - jo[k].z, ja2 = ja[k];
+        r6.push((ja2.y * az - ja2.z * ay) * nb.x + (ja2.z * ax - ja2.x * az) * nb.y + (ja2.x * ay - ja2.y * ax) * nb.z);
+      }
+      rows.push(r6); x.push(K_ROW * (C_ROW - sc[sMin]));
+    }
+    var m = rows.length, locked = [], dq = [], rep = repel();
+    for (k = 0; k < N; k++) locked.push(false);
+    for (var pass = 0; pass < 4; pass++) {
+      var A = [];
+      for (r = 0; r < m; r++) { A.push([]); for (c = 0; c < m; c++) { var s = 0; for (k = 0; k < N; k++) if (!locked[k]) s += rows[r][k] * rows[c][k]; A[r].push(s + (r === c ? LAMBDA2 : 0)); } }
+      var y = solveLinear(A, x), z = [], Jz = [];
+      for (r = 0; r < m; r++) Jz.push(0);
+      for (k = 0; k < N; k++) { z.push(locked[k] ? 0 : K_NULL * (qAttract[k] - q[k]) + rep[k]); for (r = 0; r < m; r++) Jz[r] += rows[r][k] * z[k]; }
+      var y2 = solveLinear(A, Jz), changed = false;
+      for (k = 0; k < N; k++) {
+        var val = 0;
+        if (!locked[k]) { for (r = 0; r < m; r++) val += rows[r][k] * (y[r] - y2[r]); val += z[k]; }
+        dq[k] = val;
+        if (!locked[k] && ((q[k] >= JOINTS[k].max * DEG - 1e-4 && val > 0) || (q[k] <= JOINTS[k].min * DEG + 1e-4 && val < 0))) { locked[k] = true; changed = true; }
+      }
+      if (!changed) break;
+    }
+    var peak = 0;
+    for (k = 0; k < N; k++) { if (locked[k]) dq[k] = 0; peak = Math.max(peak, Math.abs(dq[k])); }
+    if (peak > QD_MAX) for (k = 0; k < N; k++) dq[k] *= QD_MAX / peak;
+    return dq;
+  }
+  var ZERO7 = [0, 0, 0, 0, 0, 0, 0];
+  // Postura cómoda cuando no hay plan: cuanto más cruza la mano hacia el otro lado, más gira el hombro hacia dentro
+  // y más se abre el codo, para que el brazo no se apoye en el pecho.
+  var qComfy = Q_REST.slice();
+  function comfy() {
+    var x = handPos(tmpP).x;
+    qComfy[2] = clamp(30 - 150 * x, -40, 60) * DEG;
+    qComfy[1] = clamp(10 + 80 * Math.max(0, 0.1 - x), 10, 30) * DEG;
+    return qComfy;
+  }
+  // Capa 2 con cámara: busca de antemano una postura completa del brazo que deje la mano en el objeto, alineada y lejos del cuerpo.
+  // El objeto se puede agarrar con el pulgar hacia un lado o hacia el otro: se prueban los dos y se elige la postura más cómoda.
+  function alignSigned(dir) {
+    handAxes();
+    var d = hx.dot(dir);
+    tmpE.crossVectors(hx, dir);
+    if (d < 0) { if (tmpE.lengthSq() < 1e-8) tmpE.copy(hz); tmpE.normalize(); }
+    return { ang: Math.acos(clamp(d, -1, 1)), ey: tmpE.dot(hy), ez: tmpE.dot(hz) };
+  }
+  function comfort() {                   // 0 = postura de reposo; sube al alejarse de ella, al rozar topes o el cuerpo
+    var c = clearNow < 0.03 ? 1 : 0;
+    for (var k = 0; k < N; k++) {
+      var lo = JOINTS[k].min * DEG, hi = JOINTS[k].max * DEG, d = (q[k] - Q_REST[k]) / (hi - lo);
+      c += d * d + (q[k] - lo < 3 * DEG || hi - q[k] < 3 * DEG ? 0.3 : 0);
+    }
+    return c;
+  }
+  function planGoal(goalPos, axis) {
+    var qSave = q.slice(), attractSave = qAttract, best = null, bestCost = 1e9;
+    var v = new THREE.Vector3(), p = new THREE.Vector3(), dir = new THREE.Vector3();
+    qAttract = Q_REST;
+    for (var sg = 1; sg >= -1; sg -= 2) {
+      dir.copy(axis).multiplyScalar(sg);
+      var seeds = [Q_REST, qSave], found = false;
+      for (var sd = 0; sd < seeds.length && !found; sd++) {
+        q = seeds[sd].slice(); setPose(); clearNow = scan();
+        for (var it = 0; it < 400; it++) {
+          handPos(p); v.set(goalPos.x - p.x, goalPos.y - p.y, goalPos.z - p.z).multiplyScalar(6);
+          if (v.length() > 1) v.setLength(1);
+          var a = alignSigned(dir);
+          safeMove(solve(v, [clamp(5 * a.ey, -3, 3), clamp(5 * a.ez, -3, 3)]), 0.02);
+        }
+        handPos(p);
+        var err = p.distanceTo(goalPos) + 0.1 * alignSigned(dir).ang, cost = 20 * err + comfort();
+        if (cost < bestCost) { bestCost = cost; best = { q: q.slice(), err: err, dir: dir.clone() }; }
+        found = err < 0.012;
+      }
+    }
+    q = qSave; qAttract = attractSave; setPose(); clearNow = scan(); guardHit = false;
+    return best;
+  }
+  // Trayectoria de la capa 2: todas las articulaciones a la vez, con perfil de campana. «bump» abre el codo a mitad de camino.
+  var BUMPS = [null, [0, 25, 0, 0, 0, 0, 0], [15, 45, 0, 10, 0, 0, 0], [30, 60, 0, 30, 0, 0, 0], [45, 30, 0, 45, 0, 0, 0]];
+  function trajQ(tr, s, out) {
+    var s3 = s * s * s, pos = 10 * s3 - 15 * s3 * s + 6 * s3 * s * s, b = 16 * s * s * (1 - s) * (1 - s);
+    for (var k = 0; k < N; k++) out[k] = clamp(tr.q0[k] + (tr.q1[k] - tr.q0[k]) * pos + (tr.bump ? tr.bump[k] * DEG * b : 0), JOINTS[k].min * DEG, JOINTS[k].max * DEG);
+    return out;
+  }
+  function pathClear(tr) {
+    var qSave = q.slice(), ok = true, tmp = [];
+    for (var j = 1; j <= 30 && ok; j++) { q = trajQ(tr, j / 30, tmp).slice(); setPose(); if (scan() < C_MIN) ok = false; }
+    q = qSave; setPose(); clearNow = scan();
+    return ok;
+  }
+
+  // ---------- estado ----------
+  var mode = 'B', sig = 'ideal', sens = 'none', armHidden = false, rep = false, count = 8;
+  var tab = 'guide', gStep = 0, done = {}, tests = {}, fresh = null, aids = true, focused = true;
+  var running = false, practice = false, blind = false, idx = -1;
+  var target = new THREE.Vector3(), tAxis = new THREE.Vector3(0, 1, 0), estAxis = new THREE.Vector3(0, 1, 0);
+  var startPos = new THREE.Vector3(), lastPos = new THREE.Vector3();
+  var tReach = 0, inside = 0, pathLen = 0, movingT = 0, simulSum = 0, switches = 0, failed = 0, failFlag = false, guards = 0, guardPrev = false, guardT = 0;
+  var run = [];
+  var active = 0, lockout = 0, jointVel = 0, missedT = 0;        // modo A
+  var handVel = new THREE.Vector3(), rotVel = [0, 0];             // modos con capa 2
+  var traj = null, plan = null, estGoal = new THREE.Vector3();    // modos con cámara
+  var speedLog = [], lastSpeedLog = [];
+  var keys = {}, flash = {};
+  var curDist = 0, curAng = 0;
+  var tut = {}, tutT = {};
+
+  // ---------- calidad de la señal ----------
+  // Valores orientativos para imitar una señal muscular real; no están medidos en una persona.
+  var SIGNALS = {
+    ideal: { label: 'Ideal',         delay: 0,    noise: 0,    mix: 0,    miss: 0,    camErr: 0,     camAng: 0 },
+    real:  { label: 'Con ruido',     delay: 0.15, noise: 0.25, mix: 0.15, miss: 0.10, camErr: 0.010, camAng: 5 },
+    bad:   { label: 'Muy degradada', delay: 0.25, noise: 0.50, mix: 0.30, miss: 0.25, camErr: 0.020, camAng: 10 }
+  };
+  var NZ = 6;
+  var simT = 0, pending = [], buf = [], nz = [0, 0, 0, 0, 0, 0], mixSign = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], goPending = false;
+  function later(delay, fn) { pending.push({ t: simT + delay, fn: fn }); }
+  function dir(pos, neg) { return (keys[pos] ? 1 : 0) - (keys[neg] ? 1 : 0); }
+  // Órdenes del usuario: [derecha, arriba, atrás, inclinar, poner de frente]
+  // Un toque corto mueve despacio y mantener la tecla acelera, como una contracción muscular que va a más.
+  var holdT = [0, 0, 0, 0, 0];
+  function ramp(i, u, dt) {
+    holdT[i] = u ? holdT[i] + dt : 0;
+    return u * (0.3 + 0.7 * clamp(holdT[i] / 0.5, 0, 1));
+  }
+  function cmd5(withRot, dt) {
+    var x = dir('KeyD', 'KeyA'), y = dir('ArrowUp', 'ArrowDown'), z = dir('KeyS', 'KeyW');
+    var n = Math.sqrt(x * x + y * y + z * z); if (n > 0) { x /= n; y /= n; z /= n; }
+    return [ramp(0, x, dt), ramp(1, y, dt), ramp(2, z, dt), ramp(3, withRot ? dir('KeyQ', 'KeyE') : 0, dt), ramp(4, withRot ? dir('ArrowRight', 'ArrowLeft') : 0, dt)];
+  }
+  // Degrada la orden como lo haría una señal muscular: mezcla entre canales, ruido y retraso.
+  function signal(u) {
+    var S = SIGNALS[sig], n = u.length, k, out = u;
+    if (S.noise || S.mix) {
+      out = [];
+      for (k = 0; k < n; k++) {
+        var mixed = u[k] + S.mix * (mixSign[2 * k] * u[(k + 1) % n] + mixSign[2 * k + 1] * u[(k + 2) % n]);
+        var v = mixed * (1 + S.noise * nz[k]) + 0.2 * S.noise * nz[(k + 1) % NZ];
+        out.push(Math.abs(v) < 0.12 ? 0 : clamp(v, -1.5, 1.5));
+      }
+    }
+    buf.push(out);
+    var nDelay = Math.round(S.delay / H);
+    return buf.length > nDelay ? buf.shift() : [0, 0, 0, 0, 0];
+  }
+  function sigText(s) {
+    var S = SIGNALS[s];
+    return s === 'ideal' ? 'La orden del teclado llega tal cual, sin retraso ni ruido.'
+      : 'Retraso de ' + Math.round(S.delay * 1000) + ' ms, ruido del ' + Math.round(S.noise * 100) + ' %, mezcla entre señales del ' + Math.round(S.mix * 100) + ' % y error de cámara de ' + (S.camErr * 100).toFixed(0) + ' cm. Son valores orientativos, no medidos en una persona.';
+  }
+
+  // ---------- capa 3: sensación ----------
+  // Cada eje se reparte en casillas; cada casilla representa un vibrador sobre la piel.
+  var SENSES = { none: { label: 'Ninguna', bin: 0, abin: 0 }, coarse: { label: 'Gruesa', bin: 0.12, abin: 30 }, fine: { label: 'Fina', bin: 0.03, abin: 7.5 } };
+  var AXES3 = [
+    { label: 'Izquierda – derecha', k: 'x', min: -0.21, max: 0.45 },
+    { label: 'Abajo – arriba',      k: 'y', min: -0.66, max: 0.36 },
+    { label: 'Adelante – atrás',    k: 'z', min: -0.60, max: 0.06 }
+  ];
+  var SENSE_DELAY = 0.1, senseBuf = [];
+  function sensed() {
+    if (!running || !senseBuf.length) { var p = handPos(); return { x: p.x, y: p.y, z: p.z, ang: curAng }; }
+    var tWant = simT - SENSE_DELAY, best = senseBuf[0];
+    for (var j = 0; j < senseBuf.length; j++) { if (senseBuf[j].t <= tWant) best = senseBuf[j]; else break; }
+    return best;
+  }
+  var senseCv = $('sense'), sctx = senseCv.getContext('2d');
+  function drawSense() {
+    if ($('senseCard').hidden) return;
+    var w = senseCv.clientWidth, h = senseCv.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (senseCv.width !== Math.round(w * dpr) || senseCv.height !== Math.round(h * dpr)) { senseCv.width = Math.round(w * dpr); senseCv.height = Math.round(h * dpr); }
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0); sctx.clearRect(0, 0, w, h);
+    sctx.font = '11px Inter, system-ui, sans-serif'; sctx.textAlign = 'left';
+    var muted = cssVar('--muted'), cArm = cssVar('--arm'), cBg = cssVar('--bg'), cTar = cssVar('--target');
+    if (sens === 'none') { sctx.fillStyle = muted; sctx.fillText('Sin sensación: no llega ninguna información del brazo.', 0, 14); return; }
+    var S = SENSES[sens], p = sensed(), rowH = h / 4;
+    function row(a, label, n, iHand, iTar) {
+      var y = a * rowH, segW = w / n, top = y + 15, hh = rowH - 20;
+      sctx.fillStyle = muted; sctx.fillText(label, 0, y + 11);
+      for (var s = 0; s < n; s++) {
+        sctx.fillStyle = s === iHand ? cArm : cBg;
+        sctx.fillRect(s * segW + 0.5, top, Math.max(1, segW - 1), hh);
+        if (s === iTar) { sctx.strokeStyle = cTar; sctx.lineWidth = 2; sctx.strokeRect(s * segW + 1, top + 1, Math.max(1, segW - 2), hh - 2); }
+      }
+    }
+    for (var a = 0; a < 3; a++) {
+      var ax = AXES3[a], n = Math.ceil((ax.max - ax.min) / S.bin - 1e-9);
+      row(a, ax.label, n, clamp(Math.floor((p[ax.k] - ax.min) / S.bin), 0, n - 1), running ? clamp(Math.floor((target[ax.k] - ax.min) / S.bin), 0, n - 1) : -1);
+    }
+    var na = Math.round(90 / S.abin);
+    row(3, 'Giro respecto al objeto (alineado – cruzado)', na, running ? clamp(Math.floor((p.ang / DEG) / S.abin), 0, na - 1) : -1, running ? 0 : -1);
+  }
+
+  // ---------- condiciones ----------
+  function press3(prefix, names, val) { names.forEach(function (k) { $(prefix + k).setAttribute('aria-pressed', String(k === val)); }); }
+  function condKey() { return mode + '|' + sig + '|' + (armHidden ? sens : 'vis') + (rep ? '|rep' : '') + (bio ? '|bio' : ''); }
+  function condText() {
+    return (practice ? '' : count + ' objetos · ') + 'señal ' + SIGNALS[sig].label.toLowerCase() + ' · ' + (armHidden ? 'brazo oculto, sensación ' + SENSES[sens].label.toLowerCase() : 'brazo visible');
+  }
+  function condChanged() {
+    fresh = null;
+    if (tab === 'free') { rep = false; count = 8; }
+    $('senseCard').hidden = !(armHidden || sens !== 'none');
+    $('senseInfo').textContent = sens === 'none' ? 'En esta prueba no llega ninguna información del brazo.'
+      : 'Cada casilla es un vibrador: cubre ' + Math.round(SENSES[sens].bin * 100) + ' cm de posición o ' + SENSES[sens].abin + '° de giro. La casilla llena es la mano; la casilla con borde es el objeto. En una prótesis esto se sentiría en la piel; aquí se ve en pantalla.';
+    $('sigInfo').textContent = sigText(sig);
+    renderDeck(); renderCover();
+  }
+  function setMode(m) { if (running) return; mode = m; press3('mode', MODE_ORDER, m); condChanged(); }
+  function setSignal(s) { if (running) return; sig = s; press3('sig_', ['ideal', 'real', 'bad'], s); condChanged(); }
+  function setSense(s) { if (running) return; sens = s; press3('sens_', ['none', 'coarse', 'fine'], s); condChanged(); }
+  function setArm(hidden) {
+    if (running) return;
+    armHidden = hidden; g[0].visible = !hidden; trail.visible = !hidden; dropH.visible = !hidden; bioRoot.visible = bio && !hidden;
+    $('arm_on').setAttribute('aria-pressed', String(!hidden)); $('arm_off').setAttribute('aria-pressed', String(hidden));
+    condChanged();
+  }
+
+  // ---------- flujo de la prueba ----------
+  var sayUntil = 0;
+  function say(text, kind, secs) {
+    var m = $('msg'); m.textContent = text; m.className = 'toast' + (kind ? ' ' + kind : ''); m.hidden = !text;
+    sayUntil = text && secs ? performance.now() + secs * 1000 : 0;
+  }
+  function resetArm() {
+    q = Q_START.slice(); grip = 0; gripTarget = 0; setPose(); clearNow = scan(); guardHit = false; guardPrev = false; guardT = 0;
+    handVel.set(0, 0, 0); rotVel = [0, 0]; jointVel = 0; active = 0; lockout = 0; missedT = 0; traj = null;
+    pending = []; buf = []; nz = [0, 0, 0, 0, 0, 0]; goPending = false; holdT = [0, 0, 0, 0, 0];
+    mixSign = mixSign.map(function () { return Math.random() < 0.5 ? -1 : 1; });
+  }
+  function nextTarget() {
+    idx++;
+    if (!practice && idx >= count) { finish(); return; }
+    var T = TARGETS[idx % TARGETS.length];
+    target.fromArray(T.p); tAxis.fromArray(T.a).normalize();
+    var S = SIGNALS[sig];
+    estAxis.set(tAxis.x + S.camAng * DEG * gauss(), tAxis.y + S.camAng * DEG * gauss(), tAxis.z + S.camAng * DEG * gauss()).normalize();
+    targetMesh.position.copy(target); targetMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tAxis);
+    ghost.quaternion.copy(targetMesh.quaternion);
+    targetMesh.visible = true; mats.target.color.copy(colTarget); setDrop(dropT, target);
+    grip = 0; gripTarget = 0; setPose();
+    handPos(startPos); lastPos.copy(startPos);
+    tReach = 0; inside = 0; pathLen = 0; movingT = 0; simulSum = 0; switches = 0; failed = 0; failFlag = false; guards = 0;
+    traj = null; goPending = false; estMesh.visible = false; senseBuf = [];
+    if (mode === 'C') handVel.set(0, 0, 0);
+    // lo que ve la cámara: posición y eje del objeto, con su error
+    estGoal.set(target.x + S.camErr * gauss(), target.y + S.camErr * gauss(), target.z + S.camErr * gauss());
+    if (mode === 'C' || mode === 'D') { plan = planGoal(estGoal, estAxis); qAttract = plan.q; } else { plan = null; qAttract = Q_REST; }
+    curDist = handPos(pNow).distanceTo(target); curAng = alignTo(tAxis).ang;
+    speedLog = []; trailReset();
+  }
+  function start(isPractice) {
+    if (running) return;
+    practice = !!isPractice; resetArm(); run = []; idx = -1; blind = armHidden; fresh = null; focused = true;
+    tut = {}; tutT = {};
+    running = true; say('');
+    nextTarget(); uiRun();
+  }
+  function entry(ok) {
+    var straight = startPos.distanceTo(target);
+    return { ok: ok, time: tReach, ratio: straight > 1e-6 ? pathLen / straight : 1, simul: movingT > 0 ? simulSum / movingT : 0, switches: switches, failed: failed, guards: guards };
+  }
+  function record(ok) {
+    if (!practice) { var e = entry(ok); if (ok) e.time = tReach - HOLD; run.push(e); }
+    else if (ok) tut.grab = true;
+    lastSpeedLog = speedLog.slice();
+    if (ok) say('Objeto agarrado.', 'good', 1.5);
+    nextTarget();
+  }
+  function confirmPos() {
+    if (!running || !blind) return;
+    if (!practice) { var e = entry(curDist < TOL && curAng < ANG_TOL); e.err = curDist; e.ang = curAng; run.push(e); }
+    say('Error en el objeto anterior: ' + (curDist * 100).toFixed(1) + ' cm y ' + Math.round(curAng / DEG) + '°.', curDist < TOL && curAng < ANG_TOL ? 'good' : 'bad', 4);
+    nextTarget();
+  }
+  function endScene() {
+    targetMesh.visible = false; estMesh.visible = false; dropT.geometry.setDrawRange(0, 0); keys = {};
+  }
+  function mean(list, f) { return list.length ? list.reduce(function (s, r) { return s + f(r); }, 0) / list.length : NaN; }
+  function finish() {
+    running = false;
+    var rec = { mode: mode, sig: sig, hidden: blind, sens: blind ? sens : null, rep: rep, bio: bio, total: run.length, guards: mean(run, function (r) { return r.guards; }), rating: null };
+    if (blind) {
+      var cf = run.filter(function (r) { return r.err != null; });
+      rec.n = cf.filter(function (r) { return r.ok; }).length;
+      rec.err = mean(cf, function (r) { return r.err; }); rec.ang = mean(cf, function (r) { return r.ang; }); rec.time = mean(cf, function (r) { return r.time; });
+    } else {
+      var ok = run.filter(function (r) { return r.ok; });
+      rec.n = ok.length;
+      rec.time = mean(ok, function (r) { return r.time; }); rec.ratio = mean(ok, function (r) { return r.ratio; }); rec.simul = mean(ok, function (r) { return r.simul; });
+      rec.switches = mean(ok, function (r) { return r.switches; }); rec.failed = mean(run, function (r) { return r.failed; });
+    }
+    var key = condKey(); tests[key] = rec; fresh = key;
+    if (tab === 'guide') done[STEPS[gStep].id] = true;
+    save(); endScene(); say(''); uiRun(); renderResults(); renderStep();
+  }
+  function abort() {
+    if (!running) return;
+    running = false;
+    if (practice && tab === 'guide' && STEPS[gStep].kind === 'tutorial' && tut.grab) { done.tut = true; save(); }
+    practice = false;
+    trailReset(); resetArm(); endScene(); say(''); fresh = null; uiRun(); renderStep();
+  }
+  function go() {
+    if (!running || mode !== 'C' || traj || goPending) return;
+    goPending = true;
+    later(SIGNALS[sig].delay, function () {
+      goPending = false; if (!running || traj) return;
+      var d = handPos().distanceTo(estGoal);
+      traj = { q0: q.slice(), q1: plan.q, t: 0, T: clamp(0.35 + 1.0 * d, 0.5, 1.2), bump: null, servo: true };
+      for (var b = 0; b < BUMPS.length; b++) { traj.bump = BUMPS[b]; if (pathClear(traj)) break; if (b === BUMPS.length - 1) traj.bump = null; }
+      estMesh.position.copy(estGoal); estMesh.visible = SIGNALS[sig].camErr > 0 && !blind;
+    });
+  }
+  function toggleGrip() {
+    if (!running || mode === 'A') return;
+    tut.grip = true;
+    later(SIGNALS[sig].delay, function () { gripTarget = gripTarget > 0.5 ? 0 : 1; });
+  }
+  function switchJoint(back) {
+    if (!running || mode !== 'A') return;
+    var total = N + 1; switches++;
+    later(SIGNALS[sig].delay, function () {
+      lockout = 0.3; jointVel = 0;
+      if (Math.random() < SIGNALS[sig].miss) { missedT = 0.9; say('El brazo no detectó el cambio. Repítelo.', 'bad', 1.5); }
+      else active = (active + (back ? total - 1 : 1)) % total;
+    });
+  }
+  function autoW() {                     // la capa 2 gira la mano hacia el eje que ve la cámara, con el sentido que eligió el plan
+    var a = alignSigned(plan.dir);
+    return [clamp(5 * a.ey, -3, 3), clamp(5 * a.ez, -3, 3)];
+  }
+  // Giro que manda el usuario: inclinar la barra en el plano de la pantalla, y sacarla de ese plano o devolverla a él.
+  var wCmd = new THREE.Vector3(), rollMsgT = 0;
+  function userW() {
+    handAxes();
+    var len = Math.sqrt(hx.x * hx.x + hx.y * hx.y), nx = 1, ny = 0, p = rotVel[1];
+    if (len > 1e-3) { nx = hx.y / len; ny = -hx.x / len; }
+    var s = hx.z >= 0 ? 1 : -1, k = p > 0 ? -s * p * clamp(Math.abs(hx.z) / 0.1, 0, 1) : -s * p;
+    // Tope de giro, como el del antebrazo: el pulgar no baja de la horizontal. Así el brazo no acaba retorcido contra el pecho.
+    var roll = rotVel[0];
+    if (hx.y < -0.17 && roll * hx.x < 0) {
+      roll = 0; rotVel[0] = 0;
+      if (simT > rollMsgT) { rollMsgT = simT + 2.5; say('Tope de giro de la mano: inclínala hacia el otro lado (' + (hx.x > 0 ? 'Q' : 'E') + ').', 'bad', 2); }
+    }
+    wCmd.set(k * nx, k * ny, roll);
+    return [wCmd.dot(hy), wCmd.dot(hz)];
+  }
+  function tutTrack(name, on, dt) {
+    if (on) { tutT[name] = (tutT[name] || 0) + dt; if (tutT[name] > 0.25) tut[name] = true; }
+  }
+
+  // ---------- un paso de simulación ----------
+  var vCmd = new THREE.Vector3(), vSafe = new THREE.Vector3(), pNow = new THREE.Vector3(), qd = [];
+  function step(dt) {
+    var moved = ZERO7, k, c;
+    simT += dt;
+    for (k = 0; k < NZ; k++) nz[k] += -nz[k] * dt / 0.2 + Math.sqrt(2 * dt / 0.2) * gauss();
+    while (pending.length && pending[0].t <= simT) pending.shift().fn();
+    if (!running) return;
+    guardHit = false;
+    if (mode === 'A') {
+      lockout = Math.max(0, lockout - dt); missedT = Math.max(0, missedT - dt);
+      var raw = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      var u = signal([ramp(0, raw, dt), 0, 0, 0, 0])[0];
+      if (lockout > 0) u = 0;
+      if (active < N) {
+        jointVel += (u * 90 * DEG - jointVel) * Math.min(1, dt / 0.08);
+        var dq = [0, 0, 0, 0, 0, 0, 0]; dq[active] = jointVel;
+        moved = safeMove(dq, dt);
+        if (guardHit) jointVel = 0;
+      } else { grip = clamp(grip + u * 2 * dt, 0, 1); gripTarget = grip; }
+    } else if (mode === 'B' || mode === 'D') {
+      if (practice) {
+        tutTrack('x', keys.KeyA || keys.KeyD, dt); tutTrack('z', keys.KeyW || keys.KeyS, dt); tutTrack('y', keys.ArrowUp || keys.ArrowDown, dt);
+        tutTrack('roll', keys.KeyQ || keys.KeyE, dt); tutTrack('front', keys.ArrowLeft || keys.ArrowRight, dt);
+      }
+      c = signal(cmd5(mode === 'B', dt));
+      vCmd.set(c[0], c[1], c[2]).multiplyScalar(0.5);
+      handVel.lerp(vCmd, Math.min(1, dt / 0.12));
+      slide(vSafe.copy(handVel));
+      if (mode === 'B') {
+        qAttract = comfy();
+        rotVel[0] += (c[3] * 1.5 - rotVel[0]) * Math.min(1, dt / 0.12);
+        rotVel[1] += (c[4] * 1.5 - rotVel[1]) * Math.min(1, dt / 0.12);
+        moved = safeMove(solve(vSafe, userW()), dt);
+      } else moved = safeMove(solve(vSafe, autoW()), dt);
+    } else {
+      c = signal(cmd5(false, dt));
+      if (traj && traj.t > traj.T + 0.15) {
+        // la trayectoria terminó: la capa 2 acaba de acercar la mano si quedó lejos y después corrige el usuario
+        traj.t += dt;
+        handPos(pNow);
+        if (c[0] || c[1] || c[2] || traj.t > traj.T + 1.6 || pNow.distanceTo(estGoal) < 0.012) traj.servo = false;
+        if (traj.servo) { vCmd.set(estGoal.x - pNow.x, estGoal.y - pNow.y, estGoal.z - pNow.z).multiplyScalar(5); if (vCmd.length() > 0.3) vCmd.setLength(0.3); }
+        else vCmd.set(c[0], c[1], c[2]).multiplyScalar(0.2);
+        handVel.lerp(vCmd, Math.min(1, dt / 0.12));
+        slide(vSafe.copy(handVel));
+        moved = safeMove(solve(vSafe, autoW()), dt);
+      } else if (traj) {
+        traj.t += dt;
+        trajQ(traj, Math.min(1, traj.t / traj.T), qd);
+        var dq2 = []; for (k = 0; k < N; k++) dq2.push((qd[k] - q[k]) / dt);
+        moved = safeMove(dq2, dt);
+      }
+    }
+    if (mode !== 'A') grip += clamp(gripTarget - grip, -dt / 0.35, dt / 0.35);
+    setPose();
+    // medidas
+    handPos(pNow);
+    var dStep = pNow.distanceTo(lastPos), speed = dStep / dt;
+    pathLen += dStep; lastPos.copy(pNow); tReach += dt;
+    var nMoving = 0; for (k = 0; k < N; k++) if (Math.abs(moved[k]) > 5 * DEG) nMoving++;
+    if (nMoving > 0) { movingT += dt; simulSum += nMoving * dt; }
+    if (speedLog.length < 6000) speedLog.push(tReach, speed);
+    if (dStep > 1e-5) trailPush(pNow);
+    curDist = pNow.distanceTo(target); curAng = alignTo(tAxis).ang;
+    senseBuf.push({ t: simT, x: pNow.x, y: pNow.y, z: pNow.z, ang: curAng });
+    if (senseBuf.length > 80) senseBuf.shift();
+    if (guardHit && !guardPrev) { guards++; say('Freno de seguridad: el brazo no puede acercarse más al cuerpo. Aléjalo para seguir.', 'bad', 2); }
+    guardPrev = guardHit; guardT = guardHit ? 0.4 : Math.max(0, guardT - dt);
+    if (!practice && tReach > TIME_LIMIT) {
+      if (blind) confirmPos(); else { say('Tiempo agotado: se pasa al siguiente objeto.', 'bad', 2.5); record(false); }
+      return;
+    }
+    if (blind) return;
+    var placed = curDist < TOL && curAng < ANG_TOL, closed = grip > 0.9;
+    mats.target.color.copy(placed ? colOk : colTarget);
+    if (closed && !placed && !failFlag) { failFlag = true; failed++; say('Agarre fallido: abre la mano y recolócala.', 'bad', 2.5); }
+    if (grip < 0.5) failFlag = false;
+    inside = placed && closed ? inside + dt : 0;
+    if (inside >= HOLD) record(true);
+  }
+
+  // ---------- teclas en pantalla ----------
+  var deckKeys = [], itemEls = [];
+  var HOLD_KEYS = { KeyA: 1, KeyD: 1, KeyW: 1, KeyS: 1, KeyQ: 1, KeyE: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+  function pressKey(code, shift) {
+    focused = true;
+    if (code === 'Enter') { flash[code] = performance.now() + 160; confirmPos(); }
+    else if (code === 'KeyF') { flash[code] = performance.now() + 160; toggleGrip(); }
+    else if (code === 'Space') { flash[shift ? 'ShiftSpace' : code] = performance.now() + 160; if (mode === 'A') switchJoint(shift); else if (mode === 'C') go(); }
+    else if (HOLD_KEYS[code]) keys[code] = true;
+  }
+  function renderDeck() {
+    var deck = $('deck'); deck.innerHTML = ''; deckKeys = []; itemEls = [];
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function key(code, cap, label, wide) {
+      var b = el('button', 'key' + (wide ? ' wide' : '')); b.type = 'button';
+      b.appendChild(el('kbd', '', cap)); b.appendChild(el('span', '', label));
+      var real = code === 'ShiftSpace' ? 'Space' : code;
+      b.addEventListener('pointerdown', function (e) { e.preventDefault(); if (HOLD_KEYS[real]) { try { b.setPointerCapture(e.pointerId); } catch (err) {} } pressKey(real, code === 'ShiftSpace'); });
+      var up = function () { if (HOLD_KEYS[real]) keys[real] = false; };
+      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+      deckKeys.push({ el: b, code: code });
+      return b;
+    }
+    function group(title, list) {
+      var gdiv = el('div', 'kgroup'); gdiv.appendChild(el('h3', '', title));
+      var row = el('div', 'krow'); list.forEach(function (k) { row.appendChild(key(k[0], k[1], k[2], k[3])); });
+      gdiv.appendChild(row); deck.appendChild(gdiv); return gdiv;
+    }
+    var move = [['KeyA', 'A', 'izquierda'], ['KeyD', 'D', 'derecha'], ['KeyW', 'W', 'adelante'], ['KeyS', 'S', 'atrás'], ['ArrowUp', '↑', 'arriba'], ['ArrowDown', '↓', 'abajo']];
+    if (mode === 'A') {
+      var ga = group('Articulación activa', [['KeyA', 'A', 'mover a un lado'], ['KeyD', 'D', 'mover al otro'], ['Space', 'Espacio', 'pasar a la siguiente', true], ['ShiftSpace', 'Mayús + Espacio', 'volver a la anterior', true]]);
+      var gl = el('div', 'kgroup'); gl.appendChild(el('h3', '', 'Orden de las articulaciones'));
+      var ol = el('ol', 'items'); ITEM_NAMES.forEach(function (nm) { var li = el('li', '', nm); ol.appendChild(li); itemEls.push(li); });
+      gl.appendChild(ol); deck.appendChild(gl); ga.style.flex = '1 1 240px'; gl.style.flex = '2 1 320px';
+    } else {
+      if (mode === 'C') group('Orden', [['Space', 'Espacio', 'ir al objeto', true]]);
+      group(mode === 'C' ? 'Corregir la posición' : 'Mover la mano', move);
+      if (mode === 'B') group('Girar la barra rosa', [['KeyQ', 'Q', 'inclinar ↺'], ['KeyE', 'E', 'inclinar ↻'], ['ArrowLeft', '←', 'apuntar al fondo'], ['ArrowRight', '→', 'poner de frente']]);
+      group('Mano', [['KeyF', 'F', 'cerrar o abrir', true]]);
+    }
+    if (armHidden) group('Confirmar', [['Enter', 'Enter', 'la mano ya está colocada', true]]);
+    deck.appendChild(el('p', 'decknote', 'Puedes usar el teclado o pulsar estas teclas con el ratón. ' + (mode === 'A' ? '' : 'Las letras que flotan sobre la mano indican hacia dónde mueve cada tecla.')));
+  }
+
+  // ---------- interfaz: portada, pasos y resultados ----------
+  function stepTitle(s) {
+    if (s.kind === 'tutorial') return 'Aprende los controles';
+    return MODES[s.mode].label + (s.hidden ? ' · sensación ' + SENSES[s.sens].label.toLowerCase() : '') + (s.rep ? ' (repetición)' : '');
+  }
+  function summary(r) {
+    if (r.hidden) return r.n + ' de ' + r.total + ' dentro de tolerancia. Error medio: ' + fmt(sc100(r.err, 100), 1) + ' cm y ' + fmt(sc100(r.ang, 1 / DEG), 0) + '°.';
+    return r.n + ' de ' + r.total + ' objetos agarrados' + (r.n ? ', ' + fmt(r.time, 1) + ' s por objeto' : '') + '. Agarres fallidos por objeto: ' + fmt(r.failed, 1) + '.';
+  }
+  function renderCover() {
+    var cover = $('cover');
+    if (running) { cover.hidden = true; return; }
+    cover.hidden = false;
+    var s = tab === 'guide' ? STEPS[gStep] : null, tutorial = !!(s && s.kind === 'tutorial');
+    var rec = fresh ? tests[fresh] : null, last = gStep === STEPS.length - 1;
+    $('cvEyebrow').textContent = s ? 'Paso ' + (gStep + 1) + ' de ' + STEPS.length + ' · ' + s.round : 'Práctica libre';
+    $('cvTitle').textContent = rec ? 'Prueba terminada' : (s ? stepTitle(s) : MODES[mode].label);
+    var text;
+    if (rec) text = summary(rec) + (s && last ? ' Has terminado el recorrido: copia los resultados de abajo y pégalos en el chat.' : '');
+    else if (tutorial) text = done.tut ? 'Controles aprendidos. Puedes seguir practicando o pasar al siguiente paso.' : 'Práctica sin medir. Las teclas están debajo de la escena. Marca todas las casillas del panel y termina cuando quieras.';
+    else text = MODES[mode].you + ' ' + condText().replace(/^./, function (ch) { return ch.toUpperCase(); }) + '. Máximo ' + TIME_LIMIT + ' s por objeto.';
+    $('cvText').textContent = text;
+    $('cvRate').hidden = !rec;
+    for (var r = 1; r <= 5; r++) $('rate' + r).setAttribute('aria-pressed', String(!!rec && rec.rating === r));
+    var showNext = !!s && !last && (!!rec || (tutorial && done.tut));
+    $('btnNext').hidden = !showNext;
+    $('btnStart').hidden = tutorial;
+    $('btnStart').textContent = rec ? 'Repetir prueba' : 'Empezar prueba';
+    $('btnStart').className = 'btn' + (showNext ? ' ghost' : '');
+    $('btnPractice').hidden = !!rec;
+    $('btnPractice').textContent = tutorial ? 'Empezar práctica' : 'Practicar sin medir';
+    $('btnPractice').className = 'btn' + (tutorial && !done.tut ? '' : ' ghost');
+  }
+  function uiRun() {
+    $('task').hidden = !running;
+    $('btnSkip').hidden = !running; $('btnStop').hidden = !running;
+    $('btnSkip').textContent = practice ? 'Otro objeto' : 'Saltar objeto';
+    $('btnStop').textContent = practice ? 'Terminar práctica' : 'Cancelar prueba';
+    ['tabGuide', 'tabFree', 'btnPrev', 'btnFwd'].forEach(function (id) { $(id).disabled = running; });
+    $('hudJoint').hidden = mode !== 'A';
+    renderCover();
+  }
+  var tutEls = {}, stepBtns = [];
+  function renderStep() {
+    var s = STEPS[gStep];
+    $('stRound').textContent = s.round;
+    $('stTitle').textContent = 'Paso ' + (gStep + 1) + ' de ' + STEPS.length + ' · ' + stepTitle(s);
+    $('stWhy').textContent = s.why;
+    $('stYou').textContent = MODES[s.mode].you; $('stAuto').textContent = MODES[s.mode].auto;
+    $('stCond').textContent = s.kind === 'tutorial' ? 'Sin medir · señal ideal · brazo visible'
+      : (s.n || 8) + ' objetos · señal ' + SIGNALS[s.sig].label.toLowerCase() + ' · ' + (s.hidden ? 'brazo oculto, sensación ' + SENSES[s.sens].label.toLowerCase() : 'brazo visible');
+    $('tutList').hidden = s.kind !== 'tutorial';
+    $('btnPrev').disabled = running || gStep === 0; $('btnFwd').disabled = running || gStep === STEPS.length - 1;
+    stepBtns.forEach(function (b, k) {
+      if (k === gStep) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.lastChild.textContent = done[STEPS[k].id] ? 'hecho' : '';
+    });
+  }
+  function buildGuide() {
+    var ul = $('tutList');
+    TUT_ITEMS.forEach(function (it) {
+      var li = document.createElement('li'), t = document.createElement('span'), l = document.createElement('span');
+      t.className = 'tick'; l.textContent = it[1]; li.appendChild(t); li.appendChild(l); ul.appendChild(li); tutEls[it[0]] = li;
+    });
+    var ol = $('stepper'), lastRound = '';
+    STEPS.forEach(function (s, k) {
+      if (s.round !== lastRound) { var gr = document.createElement('li'); gr.className = 'grp'; gr.textContent = s.round; ol.appendChild(gr); lastRound = s.round; }
+      var li = document.createElement('li'), b = document.createElement('button'), n = document.createElement('span'), l = document.createElement('span'), st = document.createElement('span');
+      b.type = 'button'; n.className = 'num'; n.textContent = k + 1; l.textContent = stepTitle(s); st.className = 'state';
+      b.appendChild(n); b.appendChild(l); b.appendChild(st); li.appendChild(b); ol.appendChild(li); stepBtns.push(b);
+      b.addEventListener('click', function () { if (!running) { gStep = k; applyStep(); } b.blur(); });
+    });
+  }
+  function applyStep() {
+    var s = STEPS[gStep];
+    setMode(s.mode); setSignal(s.sig); setArm(!!s.hidden); setSense(s.sens || 'none');
+    rep = !!s.rep; count = s.n || 8; fresh = null;
+    renderStep(); renderCover(); save();
+  }
+  function setTab(t) {
+    if (running) return;
+    tab = t;
+    $('tabGuide').setAttribute('aria-pressed', String(t === 'guide')); $('tabFree').setAttribute('aria-pressed', String(t === 'free'));
+    $('panelGuide').hidden = t !== 'guide'; $('panelFree').hidden = t !== 'free';
+    if (t === 'guide') applyStep(); else condChanged();
+    save();
+  }
+  function rowOf(tb, cells, empty) {
+    var tr = document.createElement('tr');
+    cells.forEach(function (c, k) { var td = document.createElement('td'); td.textContent = c; if (empty && k > 1) td.className = 'none'; tr.appendChild(td); });
+    tb.appendChild(tr);
+  }
+  function visCells(r) {
+    return [SIGNALS[r.sig].label, MODES[r.mode].label + (r.rep ? ' (repetición)' : '') + (r.bio ? ' · biomimético' : ''), r.n + ' de ' + r.total, fmt(r.time, 2), fmt(r.ratio, 2), fmt(r.simul, 1), fmt(r.failed, 1), fmt(r.guards, 1), r.rating || '–'];
+  }
+  function blindCells(r) {
+    return [SIGNALS[r.sig].label, MODES[r.mode].label + (r.bio ? ' · biomimético' : ''), SENSES[r.sens].label, r.n + ' de ' + r.total, fmt(sc100(r.err, 100), 1), fmt(sc100(r.ang, 1 / DEG), 0), fmt(r.time, 2), r.rating || '–'];
+  }
+  function eachVisible(fn) {
+    ['ideal', 'real', 'bad'].forEach(function (s) {
+      MODE_ORDER.forEach(function (m) { fn(tests[m + '|' + s + '|vis'], s, m); });
+      MODE_ORDER.forEach(function (m) { var r = tests[m + '|' + s + '|vis|rep']; if (r) fn(r, s, m); });
+      MODE_ORDER.forEach(function (m) { ['|vis|bio', '|vis|rep|bio'].forEach(function (k) { var r = tests[m + '|' + s + k]; if (r) fn(r, s, m); }); });
+    });
+  }
+  function eachBlind(fn) {
+    ['ideal', 'real', 'bad'].forEach(function (s) {
+      MODE_ORDER.forEach(function (m) { ['fine', 'coarse', 'none'].forEach(function (se) { fn(tests[m + '|' + s + '|' + se], s, m, se); }); });
+      MODE_ORDER.forEach(function (m) { ['fine', 'coarse', 'none'].forEach(function (se) { var r = tests[m + '|' + s + '|' + se + '|bio']; if (r) fn(r, s, m, se); }); });
+    });
+  }
+  function renderResults() {
+    var tb = $('results'); tb.innerHTML = '';
+    eachVisible(function (r, s, m) {
+      if (r) rowOf(tb, visCells(r));
+      else if (s !== 'bad') rowOf(tb, [SIGNALS[s].label, MODES[m].label, 'sin probar', '–', '–', '–', '–', '–', '–'], true);
+    });
+    var bb = $('blindResults'); bb.innerHTML = '';
+    eachBlind(function (r, s, m, se) {
+      if (r) rowOf(bb, blindCells(r));
+      else if (s === 'real' && m === 'D') rowOf(bb, [SIGNALS[s].label, MODES[m].label, SENSES[se].label, 'sin probar', '–', '–', '–', '–'], true);
+    });
+  }
+  function report() {
+    var L = ['SIMULADOR DE BRAZO · resultados', 'Fecha: ' + new Date().toLocaleString(), '', 'BRAZO VISIBLE',
+      'señal | modo | agarrados | tiempo s | rectitud | articulaciones a la vez | cambios de articulación | agarres fallidos | frenos de seguridad | dificultad'];
+    eachVisible(function (r) { if (r) { var c = visCells(r); c.splice(6, 0, r.mode === 'A' ? fmt(r.switches, 1) : '0'); L.push(c.join(' | ')); } });
+    L.push('', 'BRAZO OCULTO', 'señal | modo | sensación | dentro de tolerancia | error cm | error ° | tiempo s | dificultad');
+    eachBlind(function (r) { if (r) L.push(blindCells(r).join(' | ')); });
+    L.push('', 'Pasos del recorrido hechos: ' + STEPS.filter(function (s) { return done[s.id]; }).length + ' de ' + STEPS.length);
+    return L.join('\n');
+  }
+  var LS = 'simulador-brazo-v5';
+  function save() { try { localStorage.setItem(LS, JSON.stringify({ tests: tests, done: done, gStep: gStep, tab: tab })); } catch (e) {} }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LS) || 'null');
+      if (s && typeof s === 'object') { tests = s.tests || {}; done = s.done || {}; gStep = clamp(s.gStep | 0, 0, STEPS.length - 1); tab = s.tab === 'free' ? 'free' : 'guide'; }
+    } catch (e) {}
+  }
+
+  // ---------- lista de tareas sobre la escena ----------
+  function check(n, ok, label, val) {
+    var li = $('ck' + n), cls = ok ? 'ok' : '';
+    if (li.className !== cls) li.className = cls;
+    if (li.children[1].textContent !== label) li.children[1].textContent = label;
+    if (li.children[2].textContent !== val) li.children[2].textContent = val;
+  }
+  function updateHud() {
+    if (!running) return;
+    setText('hudTarget', practice ? 'Práctica · objeto ' + (idx + 1) : 'Objeto ' + (idx + 1) + ' de ' + count);
+    setText('hudTime', tReach.toFixed(1) + ' s');
+    var near = curDist < TOL, al = curAng < ANG_TOL, auto = mode === 'C' || mode === 'D';
+    check(1, !blind && near, mode === 'C' ? (traj ? 'Corrige la posición si hace falta' : 'Pulsa Espacio: el brazo va solo al objeto') : 'Acerca la mano al objeto (menos de 3 cm)', blind ? 'oculto' : Math.round(curDist * 100) + ' cm');
+    check(2, !blind && al, auto ? 'Giro de la mano: lo hace el brazo solo' : 'Alinea la barra rosa con la amarilla', blind ? 'oculto' : Math.round(curAng / DEG) + '°');
+    check(3, !blind && grip > 0.9, blind ? 'Pulsa Enter cuando creas que está colocada' : (mode === 'A' ? 'Cierra la mano (última de la lista)' : 'Cierra la mano con F'), blind ? '' : (grip > 0.9 ? 'cerrada' : 'abierta'));
+    if (mode === 'A') setText('hudJoint', 'Activa: ' + ITEM_NAMES[active] + (missedT > 0 ? ' · cambio no detectado' : (lockout > 0 ? ' · cambiando…' : '')));
+  }
+
+  // ---------- gráfica de velocidad ----------
+  var chart = $('chart'), cctx = chart.getContext('2d');
+  function drawChart() {
+    var w = chart.clientWidth, h = chart.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (!w) return;
+    if (chart.width !== Math.round(w * dpr) || chart.height !== Math.round(h * dpr)) { chart.width = Math.round(w * dpr); chart.height = Math.round(h * dpr); }
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0); cctx.clearRect(0, 0, w, h);
+    var log = running && speedLog.length > 4 ? speedLog : lastSpeedLog;
+    if (running && blind) log = [];   // la gráfica delataría el movimiento del brazo oculto
+    var x0 = 34, y0 = h - 20, pw = w - x0 - 8, ph = y0 - 8;
+    cctx.strokeStyle = cssVar('--line'); cctx.lineWidth = 1;
+    cctx.beginPath(); cctx.moveTo(x0, 8); cctx.lineTo(x0, y0); cctx.lineTo(x0 + pw, y0); cctx.stroke();
+    cctx.fillStyle = cssVar('--muted'); cctx.font = '11px Inter, system-ui, sans-serif';
+    var tMax = 1, vMax = 0.5, j;
+    for (j = 0; j < log.length; j += 2) { if (log[j] > tMax) tMax = log[j]; if (log[j + 1] > vMax) vMax = log[j + 1]; }
+    tMax = Math.ceil(tMax); vMax = Math.ceil(vMax * 10) / 10;
+    cctx.textAlign = 'right'; cctx.fillText(vMax.toFixed(1), x0 - 4, 14); cctx.fillText('0', x0 - 4, y0);
+    cctx.textAlign = 'left'; cctx.fillText('m/s', 2, 26);
+    cctx.textAlign = 'right'; cctx.fillText(tMax + ' s', x0 + pw, h - 5);
+    cctx.textAlign = 'left'; cctx.fillText('0', x0, h - 5);
+    if (log.length < 4) return;
+    cctx.strokeStyle = cssVar('--bar'); cctx.lineWidth = 2; cctx.lineJoin = 'round'; cctx.beginPath();
+    for (j = 0; j < log.length; j += 2) {
+      var x = x0 + (log[j] / tMax) * pw, y = y0 - (Math.min(log[j + 1], vMax) / vMax) * ph;
+      if (j === 0) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+    }
+    cctx.stroke();
+  }
+
+  // ---------- cámara ----------
+  var CAM0 = { r: 1.3, theta: 0.5, phi: 1.05 };
+  var cam = { r: CAM0.r, theta: CAM0.theta, phi: CAM0.phi, center: new THREE.Vector3(0.14, -0.1, -0.3) };
+  function placeCamera() {
+    var sp2 = Math.sin(cam.phi);
+    camera.position.set(cam.center.x + cam.r * sp2 * Math.sin(cam.theta), cam.center.y + cam.r * Math.cos(cam.phi), cam.center.z + cam.r * sp2 * Math.cos(cam.theta));
+    camera.lookAt(cam.center);
+  }
+  var drag = null;
+  canvas.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    cam.theta -= (e.clientX - drag.x) * 0.006; cam.phi = clamp(cam.phi - (e.clientY - drag.y) * 0.006, 0.25, 2.6);
+    drag.x = e.clientX; drag.y = e.clientY; placeCamera();
+  });
+  canvas.addEventListener('pointerup', function () { drag = null; });
+  canvas.addEventListener('pointercancel', function () { drag = null; });
+  canvas.addEventListener('wheel', function (e) { e.preventDefault(); cam.r = clamp(cam.r * (e.deltaY > 0 ? 1.08 : 0.93), 0.7, 3.5); placeCamera(); }, { passive: false });
+  var vw = 600, vh = 400, ins = 150;
+  function resize() {
+    vw = canvas.parentElement.clientWidth || 600; vh = Math.round(clamp(vw * 0.66, 330, 620));
+    ins = Math.round(clamp(vw * 0.25, 104, 190));
+    renderer.setSize(vw, vh, false); canvas.style.height = vh + 'px';
+    $('viewwrap').style.setProperty('--inset', ins + 'px');
+    camera.aspect = vw / vh; camera.updateProjectionMatrix();
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement);
+  window.addEventListener('resize', resize);
+
+  // ---------- teclado y botones ----------
+  var USED = { KeyA: 1, KeyD: 1, KeyW: 1, KeyS: 1, KeyQ: 1, KeyE: 1, KeyF: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Space: 1, Enter: 1 };
+  window.addEventListener('keydown', function (e) {
+    focused = true;
+    if (!USED[e.code] || e.ctrlKey || e.metaKey || e.altKey) return;
+    var tag = e.target && e.target.tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+    if (!running) return;
+    e.preventDefault();                  // durante la prueba, las teclas no mueven la página
+    if (e.repeat && !HOLD_KEYS[e.code]) return;
+    pressKey(e.code, e.shiftKey);
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+  window.addEventListener('blur', function () { keys = {}; focused = false; });
+  window.addEventListener('focus', function () { focused = true; });
+  window.addEventListener('pointerdown', function () { focused = true; }, true);
+  function onClick(id, fn) { $(id).addEventListener('click', function (e) { fn(); e.currentTarget.blur(); }); }
+  MODE_ORDER.forEach(function (m) { onClick('mode' + m, function () { setMode(m); }); });
+  ['ideal', 'real', 'bad'].forEach(function (s) { onClick('sig_' + s, function () { setSignal(s); }); });
+  ['none', 'coarse', 'fine'].forEach(function (s) { onClick('sens_' + s, function () { setSense(s); }); });
+  onClick('model_bio', function () { setBio(true); });
+  onClick('model_simple', function () { setBio(false); });
+  onClick('arm_on', function () { setArm(false); });
+  onClick('arm_off', function () { setArm(true); });
+  onClick('tabGuide', function () { setTab('guide'); });
+  onClick('tabFree', function () { setTab('free'); });
+  onClick('btnStart', function () { start(false); });
+  onClick('btnPractice', function () { start(true); });
+  onClick('btnStop', abort);
+  onClick('btnSkip', function () { if (!running) return; if (blind) confirmPos(); else record(false); });
+  onClick('btnNext', function () { if (!running && gStep < STEPS.length - 1) { gStep++; applyStep(); } });
+  onClick('btnPrev', function () { if (!running && gStep > 0) { gStep--; applyStep(); } });
+  onClick('btnFwd', function () { if (!running && gStep < STEPS.length - 1) { gStep++; applyStep(); } });
+  onClick('btnAids', function () { aids = !aids; $('btnAids').setAttribute('aria-pressed', String(aids)); });
+  onClick('btnView', function () { cam.r = CAM0.r; cam.theta = CAM0.theta; cam.phi = CAM0.phi; placeCamera(); });
+  $('pause').addEventListener('click', function () { focused = true; });
+  [1, 2, 3, 4, 5].forEach(function (r) {
+    onClick('rate' + r, function () { if (fresh && tests[fresh]) { tests[fresh].rating = r; save(); renderCover(); renderResults(); } });
+  });
+  onClick('btnCopy', function () {
+    var text = report(), out = $('copyOut'), msg = $('copyMsg');
+    function fallback() { out.hidden = false; out.value = text; out.focus(); out.select(); msg.textContent = 'No se pudo copiar automáticamente. El texto está seleccionado: cópialo con Ctrl + C.'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { msg.textContent = 'Resultados copiados. Pégalos en el chat.'; }, fallback);
+    else fallback();
+  });
+  var clearArmed = 0;
+  onClick('btnClear', function () {
+    var b = $('btnClear');
+    if (performance.now() < clearArmed) { tests = {}; done = {}; fresh = null; clearArmed = 0; b.textContent = 'Borrar resultados'; save(); renderResults(); renderStep(); renderCover(); }
+    else { clearArmed = performance.now() + 4000; b.textContent = 'Pulsa otra vez para borrar todo'; setTimeout(function () { if (clearArmed) { clearArmed = 0; b.textContent = 'Borrar resultados'; } }, 4000); }
+  });
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  if (mq && mq.addEventListener) mq.addEventListener('change', applyTheme);
+  if (window.MutationObserver) new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ---------- brazo biomimético: carga, cambio de modelo y músculos ----------
+  var HAND_PARTS = [palm, fingers, thumb, ee];
+  HAND_PARTS.forEach(function (o) { o.userData.y0 = o.position.y; });
+  var musRows = {}, UNIT_RANK = { S: 0, M: 1, L: 2 }, V_REF = 40;   // mm/s de acortamiento que encienden todas las unidades
+  function bioB64(s, Tipo) { var bin = atob(s), n = bin.length, u8 = new Uint8Array(n); for (var k = 0; k < n; k++) u8[k] = bin.charCodeAt(k); return new Tipo(u8.buffer); }
+  function bonito(n) { n = n.replace(/_/g, ' '); return n.charAt(0).toUpperCase() + n.slice(1); }
+  function bioBuild(modelo, mallas) {
+    var geos = {}, artic = {}, porId = {};
+    modelo.articulaciones.forEach(function (a) { artic[a.id] = a; });
+    modelo.grupos.forEach(function (gr) { porId[gr.id] = gr; });
+    bioGeo.p1.fromArray(porId.G3.origen_en_padre).multiplyScalar(0.001);
+    bioGeo.wrist.fromArray(porId.G4.origen_en_padre).multiplyScalar(0.001);
+    bioGeo.axis.fromArray(artic.antebrazo_pronacion.eje).normalize();
+    bioData = { modelo: modelo, lim: BIO_MAP.map(function (id) { return artic[id].rango; }) };
+    modelo.grupos.forEach(function (gr) {
+      var c = new THREE.Group(); c.scale.setScalar(0.001); c.visible = false; bioCont[gr.id] = c;
+      (gr.id === 'G0' ? bioRoot : g[BIO_PARENT[gr.id]]).add(c);
+      gr.instancias.forEach(function (it) {
+        if (it.pieza === 'mano_referencia') return;            // la mano animada del simulador ocupa su lugar
+        var m = mallas[it.pieza], info = modelo.piezas[it.pieza];
+        if (!m || !info) return;
+        if (!geos[it.pieza]) {
+          var geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(bioB64(m.p, Float32Array), 3));
+          geo.setAttribute('normal', new THREE.BufferAttribute(bioB64(m.n, Int8Array), 3, true));
+          geo.setIndex(new THREE.BufferAttribute(bioB64(m.i, m.i16 ? Uint16Array : Uint32Array), 1));
+          geos[it.pieza] = geo;
+        }
+        var unidad = it.pieza.indexOf('unidad_motora_') === 0;
+        var mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(info.color[0], info.color[1], info.color[2]), roughness: unidad ? 0.45 : 0.65, metalness: unidad ? 0.2 : 0.05 });
+        var mesh = new THREE.Mesh(geos[it.pieza], mat), R = it.R, t = it.t;
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.set(R[0][0], R[0][1], R[0][2], t[0], R[1][0], R[1][1], R[1][2], t[1], R[2][0], R[2][1], R[2][2], t[2], 0, 0, 0, 1);
+        c.add(mesh);
+        if (unidad) (bioUnits[it.de] = bioUnits[it.de] || []).push({ mesh: mesh, size: it.pieza.slice(-1) });
+      });
+    });
+    var geoCil = new THREE.CylinderGeometry(1, 1, 1, 8), matTend = new THREE.MeshStandardMaterial({ color: 0xf2ecd2, roughness: 0.6 });
+    var extra = [], list = $('musList');
+    modelo.musculos.forEach(function (m) {
+      var segs = [];
+      for (var k = 0; k < m.ruta.length - 1; k++) { var cyl = new THREE.Mesh(geoCil, matTend); bioRoot.add(cyl); segs.push(cyl); }
+      bioTendons[m.id] = segs;
+      var us = (bioUnits[m.id] || []).sort(function (a, b) { return UNIT_RANK[a.size] - UNIT_RANK[b.size]; });
+      // fila del panel
+      var row = document.createElement('div'); row.className = 'mrow'; row.title = m.accion + ' (copia a: ' + m.copia_a + ')';
+      var cells = '<span class="mid">' + m.id + '</span><span class="mname">' + bonito(m.nombre) + '</span><span class="units">';
+      us.forEach(function (u) { cells += '<i class="u ' + u.size + '"></i>'; });
+      row.innerHTML = cells + '</span><span class="dl">0,0 mm</span>';
+      list.appendChild(row);
+      musRows[m.id] = { row: row, units: row.querySelectorAll('.u'), dl: row.querySelector('.dl') };
+      // puntos que vigila el freno de seguridad: el centro de cada paquete de músculo del brazo y del antebrazo
+      var parent = BIO_PARENT[m.grupo];
+      if (parent !== 2 && parent !== 4) return;
+      var big = m.paquete === 'P4', Lp = big ? 70 : 60;
+      [0.3, 0.75].forEach(function (f) {
+        var o = new THREE.Object3D();
+        o.position.set(m.origen[0] + m.direccion[0] * Lp * f, m.origen[1] + m.direccion[1] * Lp * f, m.origen[2] + m.direccion[2] * Lp * f).multiplyScalar(0.001);
+        g[parent].add(o);
+        extra.push({ parent: parent, r: big ? 0.0195 : 0.0145, up: parent === 2 ? 3 : 5, bio: true, obj: o });
+      });
+    });
+    SAMPLES.splice.apply(SAMPLES, [HAND_FIRST, 0].concat(extra));
+    sp.splice.apply(sp, [HAND_FIRST, 0].concat(extra.map(function () { return new THREE.Vector3(); })));
+    sc.splice.apply(sc, [HAND_FIRST, 0].concat(extra.map(function () { return 1; })));
+    HAND_FIRST += extra.length;
+    bioRoot.updateMatrixWorld(true);
+  }
+  var bvA = new THREE.Vector3(), bvB = new THREE.Vector3(), bvD = new THREE.Vector3(), BIO_UP = new THREE.Vector3(0, 1, 0);
+  function bioPoint(r, out) { return bioCont[r.grupo].localToWorld(out.fromArray(r.p)); }
+  function bioLength(m) {
+    var L = 0;
+    bioPoint(m.ruta[0], bvA);
+    for (var k = 1; k < m.ruta.length; k++) { bioPoint(m.ruta[k], bvB); L += bvA.distanceTo(bvB); bvA.copy(bvB); }
+    return L;
+  }
+  function bioInfo() {
+    $('model_bio').setAttribute('aria-pressed', String(bio)); $('model_simple').setAttribute('aria-pressed', String(!bio));
+    $('modelInfo').textContent = bio
+      ? 'Brazo generado en SolidWorks: 15 músculos y 52 unidades motoras. Usa su geometría y sus topes reales: codo 0–130°, giro del antebrazo 0–140° (desde la palma al frente hacia dentro). Sus resultados se guardan aparte.'
+      : 'Brazo esquemático de las primeras pruebas, con los topes del brazo humano.';
+    $('musCard').hidden = !bio;
+  }
+  function setBio(on) {
+    if (running || (on && !bioData)) return;
+    bio = on;
+    var k;
+    for (k = 0; k < N; k++) { var lim = on ? bioData.lim[k] : SIMPLE_LIM[k]; JOINTS[k].min = lim[0]; JOINTS[k].max = lim[1]; }
+    if (on) { g[4].position.copy(bioGeo.p1); axes[4].copy(bioGeo.axis); wrist.position.copy(bioGeo.wrist); }
+    else { g[4].position.set(0, 0, 0); axes[4].set(0, 1, 0); wrist.position.set(0, -L2, 0); }
+    HAND_PARTS.forEach(function (o) { o.position.y = o.userData.y0 + (on ? HAND_DY : 0); });
+    segUpper.visible = segLower.visible = !on;
+    var s = on ? 0.55 : 1; ballShoulder.scale.setScalar(s); ballElbow.scale.setScalar(s); ballWrist.scale.setScalar(s);
+    Object.keys(bioCont).forEach(function (id) { bioCont[id].visible = on; });
+    bioRoot.visible = on && !armHidden;
+    for (k = 0; k < N; k++) q[k] = clamp(q[k], JOINTS[k].min * DEG, JOINTS[k].max * DEG);
+    if (on && !bioRef.done) {
+      var keep = q.slice();
+      q = q.map(function () { return 0; }); setPose();
+      bioData.modelo.musculos.forEach(function (m) { bioRef[m.id] = bioLength(m); });
+      q = keep; bioRef.done = true;
+    }
+    bioLen = {}; bioVel = {};
+    setPose(); clearNow = scan();
+    try { localStorage.setItem('simulador-brazo-modelo', on ? 'bio' : 'simple'); } catch (e) {}
+    bioInfo(); condChanged(); renderResults();
+  }
+  var bioDomAt = 0;
+  function bioUpdate(dt) {
+    var now = performance.now(), dom = now > bioDomAt, working = 0;
+    if (dom) bioDomAt = now + 120;
+    bioData.modelo.musculos.forEach(function (m) {
+      var segs = bioTendons[m.id], L = 0;
+      bioPoint(m.ruta[0], bvA);
+      for (var k = 1; k < m.ruta.length; k++) {
+        bioPoint(m.ruta[k], bvB); bvD.subVectors(bvB, bvA); var d = bvD.length() || 1e-6; L += d;
+        var cyl = segs[k - 1];
+        cyl.position.copy(bvA).addScaledVector(bvD, 0.5);
+        cyl.quaternion.setFromUnitVectors(BIO_UP, bvD.multiplyScalar(1 / d));
+        cyl.scale.set(0.0012, d, 0.0012);
+        bvA.copy(bvB);
+      }
+      L *= 1000;                                                 // mm
+      var prev = bioLen[m.id], v = prev === undefined || dt <= 0 ? 0 : (L - prev) / dt;
+      if (Math.abs(v) > 500) v = 0;                              // salto de pose al reiniciar: no es un movimiento
+      bioLen[m.id] = L;
+      var vs = bioVel[m.id] || 0; vs += (v - vs) * Math.min(1, dt / 0.12); bioVel[m.id] = vs;
+      var us = bioUnits[m.id] || [], n = us.length, a = clamp(-vs / V_REF, 0, 1), on = a < 0.05 ? 0 : Math.min(n, Math.ceil(a * n));
+      if (on) working++;
+      var row = musRows[m.id];
+      if (bioOn[m.id] !== on) {
+        bioOn[m.id] = on;
+        for (var u = 0; u < n; u++) {
+          us[u].mesh.material.emissive.setHex(u < on ? 0xff3a1a : 0x000000); us[u].mesh.material.emissiveIntensity = u < on ? 0.75 : 0;
+          if (row) row.units[u].classList.toggle('on', u < on);
+        }
+        if (row) row.row.classList.toggle('work', on > 0);
+      }
+      if (dom && row) {
+        var dl = L - (bioRef[m.id] * 1000);
+        row.dl.textContent = (Math.abs(dl) < 0.05 ? '0,0' : (dl > 0 ? '+' : '−') + Math.abs(dl).toFixed(1).replace('.', ',')) + ' mm';
+      }
+    });
+    if (dom) $('musWork').textContent = working ? working + ' músculo' + (working > 1 ? 's' : '') + ' trabajando' : 'Brazo quieto';
+  }
+  (function cargarBio() {
+    var J = function (u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); }); };
+    Promise.all([J('modelo3d/modelo.json'), J('modelo3d/mallas.json')]).then(function (r) {
+      bioBuild(r[0], r[1]);
+      $('model_bio').disabled = false;
+      var pref = 'bio';
+      try { pref = localStorage.getItem('simulador-brazo-modelo') || 'bio'; } catch (e) {}
+      if (pref === 'bio' && !running) setBio(true); else bioInfo();
+    }).catch(function (e) {
+      $('modelInfo').textContent = 'No se pudo cargar el modelo biomimético (' + e.message + '). Se usa el brazo simple.';
+    });
+  })();
+
+  // ---------- bucle ----------
+  var last = 0, acc = 0;
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000 || 0); last = now;
+    var paused = running && !focused;
+    if (running && !paused) { acc += dt; while (acc >= H && running) { step(H); acc -= H; } } else acc = 0;
+    if ($('pause').hidden === paused) $('pause').hidden = !paused;
+    if (sayUntil && now > sayUntil) say('');
+    updateHud();
+    // ayudas y marcas en la escena
+    handPos(pNow);
+    setDrop(dropH, pNow);
+    var show = running && !blind;
+    ghost.visible = show && aids; ghost.position.copy(pNow);
+    mats.ghost.color.copy(show && curAng < ANG_TOL ? colOk : colTarget);
+    giz.visible = show && aids && (mode === 'B' || mode === 'D' || (mode === 'C' && !!traj && traj.t > traj.T)); giz.position.copy(pNow);
+    mats.body.color.copy(guardT > 0 ? colWarn : colBody);
+    var k;
+    for (k = 0; k < ITEM_MESH.length; k++) ITEM_MESH[k].material = k === 7 ? mats.arm : mats.joint;
+    if (running && mode === 'A') ITEM_MESH[active].material = mats.hl;
+    for (k = 0; k < itemEls.length; k++) { var on = running && k === active; if ((itemEls[k].className === 'on') !== on) itemEls[k].className = on ? 'on' : ''; }
+    for (k = 0; k < deckKeys.length; k++) { var dk = deckKeys[k], dn = !!keys[dk.code] || (flash[dk.code] || 0) > now; if (dk.el.classList.contains('down') !== dn) dk.el.classList.toggle('down', dn); }
+    if (running && practice && tab === 'guide') {
+      var all = true;
+      TUT_ITEMS.forEach(function (it) { var okk = !!tut[it[0]]; if (!okk) all = false; if ((tutEls[it[0]].className === 'ok') !== okk) tutEls[it[0]].className = okk ? 'ok' : ''; });
+      if (all && !done.tut && STEPS[gStep].kind === 'tutorial') { done.tut = true; save(); renderStep(); say('Controles aprendidos. Termina la práctica cuando quieras.', 'good', 4); }
+    }
+    if (bio) bioUpdate(dt);
+    drawChart(); drawSense();
+    renderer.setScissorTest(true);
+    renderer.setViewport(0, 0, vw, vh); renderer.setScissor(0, 0, vw, vh); renderer.render(scene, camera);
+    renderer.setViewport(vw - ins - 10, 10, ins, ins); renderer.setScissor(vw - ins - 10, 10, ins, ins); renderer.render(scene, topCam);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- arranque ----------
+  load(); buildGuide(); applyTheme(); setPose(); clearNow = scan(); resize(); placeCamera();
+  setTab(tab); renderResults(); uiRun();
+  requestAnimationFrame(frame);
+
+  // acceso para pruebas automáticas
+  window.__sim = {
+    start: start, stop: abort, go: go, grip: toggleGrip, confirm: confirmPos, setMode: setMode, setSignal: setSignal, setArm: setArm, setSense: setSense, setTab: setTab,
+    skip: function () { if (running) record(false); },
+    advance: function (sec) { var n = Math.round(sec / H); for (var a = 0; a < n && running; a++) step(H); },
+    key: function (code, down) { keys[code] = down; },
+    press: pressKey,
+    tests: function () { return tests; },
+    setBio: setBio,
+    bioStep: function (dt) { if (bio) bioUpdate(dt); return bioOn; },
+    planErr: function () { return plan ? +plan.err.toFixed(4) : null; },
+    probe: function (deg) { var s = q.slice(); q = deg.map(function (d) { return d * DEG; }); setPose(); var c = scan(); q = s; setPose(); scan(); return +c.toFixed(4); },
+    state: function () {
+      var p = handPos(), al = running ? alignTo(tAxis) : { ang: 0, wx: 0, wy: 0, wz: 0 };
+      handAxes();
+      return { mode: mode, running: running, practice: practice, idx: idx, active: active, grip: +grip.toFixed(2), dist: +curDist.toFixed(3), ang: +(al.ang / DEG).toFixed(1),
+               w: [+al.wx.toFixed(3), +al.wy.toFixed(3), +al.wz.toFixed(3)], bar: [+hx.x.toFixed(3), +hx.y.toFixed(3), +hx.z.toFixed(3)], clear: +clearNow.toFixed(4), guard: guardHit, guards: guards, sc: sc.map(function (x) { return +x.toFixed(3); }), plan: plan ? plan.q.map(function (x) { return +(x / DEG).toFixed(1); }) : null,
+               traj: traj ? { t: +traj.t.toFixed(2), T: +traj.T.toFixed(2), bump: traj.bump } : null,
+               q: q.map(function (x) { return +(x / DEG).toFixed(1); }), hand: [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)], target: [target.x, target.y, target.z], axis: [+tAxis.x.toFixed(3), +tAxis.y.toFixed(3), +tAxis.z.toFixed(3)], run: run };
+    }
+  };
+})();
+</script>

@@ -1,0 +1,32 @@
+﻿== PIEZAS
+  pieza tendon_P4_077: 0.47 g, caja [2.6, 77.0, 2.6]
+    (13.5 s)
+  pieza tendon_P4_029: 0.177 g, caja [2.6, 29.0, 2.6]
+    (3.6 s)
+  pieza tendon_P3_020: 0.087 g, caja [2.2, 20.0, 2.2]
+    (3.6 s)
+  pieza tendon_P4_088: 0.537 g, caja [2.6, 88.0, 2.6]
+    (3.7 s)
+  pieza tendon_P3_047: 0.205 g, caja [2.2, 47.0, 2.2]
+    (3.1 s)
+== MÚSCULOS
+  músculo M01_deltoides_anterior: 10 componentes
+  músculo M02_deltoides_posterior: 10 componentes
+  músculo M03_deltoides_medio: 10 componentes
+  músculo M04_aductor: 10 componentes
+  músculo M05_rotador_externo: 9 componentes
+  músculo M06_rotador_interno: 9 componentes
+  músculo M07_biceps: 10 componentes
+  músculo M08_braquial: 10 componentes
+  músculo M09_triceps: 10 componentes
+  músculo M10_pronador: 9 componentes
+  músculo M11_supinador: 9 componentes
+  músculo M12_flexor_radial: 9 componentes
+  músculo M13_flexor_cubital: 9 componentes
+  músculo M14_extensor_radial: 9 componentes
+  músculo M15_extensor_cubital: 9 componentes
+== GRUPOS
+  grupo G0_hombro: 7 componentes
+  grupo G1_brazo: 13 componentes
+  grupo G2_cubito: 5 componentes
+  grupo G3_radio: 11 componentes

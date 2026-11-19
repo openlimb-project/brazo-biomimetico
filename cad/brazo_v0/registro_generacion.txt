@@ -1,0 +1,56 @@
+﻿== PIEZAS
+  pieza humero: 185.852 g, caja [67.0, 334.0, 45.0]
+    (103.8 s)
+  pieza eje_codo: 12.045 g, caja [49.5, 9.0, 9.0]
+    (8.6 s)
+  pieza cubito_gancho: 7.207 g, caja [14.0, 45.5, 34.09]
+    (35.1 s)
+  pieza cubito_diafisis: 32.875 g, caja [15.0, 228.92, 15.0]
+    (12.9 s)
+  pieza rodamiento_anular: 8.179 g, caja [24.4, 8.0, 24.4]
+    (9.0 s)
+  pieza cabeza_radial: 14.227 g, caja [21.0, 60.0, 21.0]
+    (13.3 s)
+  pieza radio_diafisis_1: 7.118 g, caja [13.6, 48.96, 13.6]
+    (17.3 s)
+  pieza radio_diafisis_2: 23.955 g, caja [15.0, 134.3, 15.0]
+    (17.0 s)
+  pieza radio_distal: 24.561 g, caja [40.0, 60.0, 18.0]
+    (60.6 s)
+  pieza cruceta_muneca: 21.207 g, caja [42.0, 12.0, 29.0]
+    (31.3 s)
+  pieza adaptador_mano: 38.772 g, caja [48.0, 34.0, 48.0]
+    (54.4 s)
+  pieza mano_referencia: 258.96 g, caja [113.0, 183.25, 24.0]
+    (86.5 s)
+  pieza montura_hombro: 251.958 g, caja [208.0, 128.0, 120.0]
+    (114.8 s)
+  pieza ancla_tendon: 1.266 g, caja [6.4, 11.2, 6.4]
+    (23.4 s)
+  aviso: material Ti-6Al-4V no aplicado a unidad_motora_S: No se aplicó el material 'Ti-6Al-4V'. Busca el nombre exacto con sw_materiales('Ti-6').
+  pieza unidad_motora_S: 3.262 g, caja [10.0, 50.0, 10.0]
+    (8.5 s)
+  aviso: material Ti-6Al-4V no aplicado a unidad_motora_M: No se aplicó el material 'Ti-6Al-4V'. Busca el nombre exacto con sw_materiales('Ti-6').
+  pieza unidad_motora_M: 6.894 g, caja [13.0, 60.0, 13.0]
+    (8.5 s)
+  aviso: material Ti-6Al-4V no aplicado a unidad_motora_L: No se aplicó el material 'Ti-6Al-4V'. Busca el nombre exacto con sw_materiales('Ti-6').
+  pieza unidad_motora_L: 12.507 g, caja [16.0, 70.0, 16.0]
+    (8.7 s)
+  pieza separador_P4: 7.31 g, caja [44.0, 4.0, 39.0]
+    (19.8 s)
+  pieza aponeurosis_P4: 6.388 g, caja [34.0, 15.0, 34.0]
+    (13.3 s)
+  pieza resorte_serie_P4: 8.361 g, caja [9.2, 22.0, 9.2]
+    (10.1 s)
+  pieza guia_tendon_P4: 1.749 g, caja [7.8, 6.0, 7.8]
+    (8.2 s)
+  pieza separador_P3: 4.405 g, caja [34.0, 4.0, 29.0]
+    (14.3 s)
+  pieza aponeurosis_P3: 2.825 g, caja [25.0, 12.0, 25.0]
+    (10.0 s)
+  pieza resorte_serie_P3: 4.592 g, caja [7.6, 18.0, 7.6]
+    (10.8 s)
+  pieza guia_tendon_P3: 1.629 g, caja [7.4, 6.0, 7.4]
+    (11.0 s)
+  pieza tendon_P4_059: 0.36 g, caja [2.6, 59.0, 2.6]
+    (9.7 s)

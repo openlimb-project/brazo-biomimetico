@@ -1,0 +1,35 @@
+﻿== EXPORTAR
+  modelo.json y 31 STL exportados
+Listo en 85 s
+  adaptador_mano.STL: 956 triángulos, 935 vértices
+  ancla_tendon.STL: 934 triángulos, 901 vértices
+  aponeurosis_P3.STL: 336 triángulos, 338 vértices
+  aponeurosis_P4.STL: 336 triángulos, 338 vértices
+  cabeza_radial.STL: 3828 triángulos, 2762 vértices
+  cruceta_muneca.STL: 532 triángulos, 540 vértices
+  cubito_diafisis.STL: 1160 triángulos, 612 vértices
+  cubito_gancho.STL: 552 triángulos, 572 vértices
+  eje_codo.STL: 484 triángulos, 486 vértices
+  guia_tendon_P3.STL: 536 triángulos, 536 vértices
+  guia_tendon_P4.STL: 544 triángulos, 544 vértices
+  humero.STL: 7030 triángulos, 4225 vértices
+  mano_referencia.STL: 448 triángulos, 480 vértices
+  montura_hombro.STL: 846 triángulos, 729 vértices
+  radio_diafisis_1.STL: 5564 triángulos, 2784 vértices
+  radio_diafisis_2.STL: 2388 triángulos, 1196 vértices
+  radio_distal.STL: 568 triángulos, 588 vértices
+  resorte_serie_P3.STL: 4598 triángulos, 4375 vértices
+  resorte_serie_P4.STL: 5574 triángulos, 5351 vértices
+  rodamiento_anular.STL: 652 triángulos, 652 vértices
+  separador_P3.STL: 936 triángulos, 936 vértices
+  separador_P4.STL: 1120 triángulos, 1116 vértices
+  tendon_P3_020.STL: 136 triángulos, 138 vértices
+  tendon_P3_047.STL: 120 triángulos, 122 vértices
+  tendon_P4_029.STL: 124 triángulos, 126 vértices
+  tendon_P4_059.STL: 120 triángulos, 122 vértices
+  tendon_P4_077.STL: 120 triángulos, 122 vértices
+  tendon_P4_088.STL: 120 triángulos, 122 vértices
+  unidad_motora_L.STL: 916 triángulos, 736 vértices
+  unidad_motora_M.STL: 1088 triángulos, 911 vértices
+  unidad_motora_S.STL: 1030 triángulos, 821 vértices
+mallas.json: 1.04 MB, 43696 triángulos, 34216 vértices, 31 piezas

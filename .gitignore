@@ -1,0 +1,19 @@
+# Entornos de Python
+.venv/
+__pycache__/
+*.pyc
+
+# Configuración local (rutas de cada PC). Copia .mcp.example.json a .mcp.json
+.mcp.json
+.claude/settings.local.json
+
+# Grafo de conocimiento local (graphify)
+graphify-out/
+
+# Archivos temporales de SolidWorks y del sistema
+~$*
+*.~*
+*.bak
+Thumbs.db
+desktop.ini
+.DS_Store

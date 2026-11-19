@@ -1,0 +1,12 @@
+{
+ "masa_g": 1584.747,
+ "volumen_cm3": 1207.374,
+ "area_cm2": 4427.926,
+ "centro_masa_mm": [
+  -13.454,
+  -229.154,
+  2.292
+ ],
+ "densidad_kg_m3": 1312.6,
+ "caja_mm_xyz": null
+}
