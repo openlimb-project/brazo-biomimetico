@@ -123,14 +123,15 @@ kbd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size
 #sense { display: block; width: 100%; height: 160px; }
 #chart { display: block; width: 100%; height: 130px; }
 .mus { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 14px; }
-.mrow { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto 4.6em; gap: 6px; align-items: center; font-size: 0.82rem; padding: 2px 0; border-bottom: 1px solid var(--line); }
+.mrow { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto 3.2em 4.9em; gap: 6px; align-items: center; font-size: 0.82rem; padding: 2px 0; border-bottom: 1px solid var(--line); }
 .mrow .mid { font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .mrow .mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mrow .units { display: flex; gap: 3px; align-items: center; }
 .mrow .u { display: inline-block; border: 1px solid var(--muted); border-radius: 2px; background: transparent; }
 .mrow .u.S { width: 8px; height: 8px; } .mrow .u.M { width: 10px; height: 10px; } .mrow .u.L { width: 12px; height: 12px; }
 .mrow .u.on { background: var(--warn); border-color: var(--warn); }
-.mrow .dl { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.mrow .fn { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mrow .dl { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 .mrow.work .mname { font-weight: 600; }
 .tbl { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
@@ -220,7 +221,7 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
           <span class="note" id="musWork"></span>
         </div>
         <div class="mus" id="musList"></div>
-        <p class="note">Cada cuadro es una unidad motora, de la pequeña a la grande. Se encienden en ese orden cuando el músculo tiene que acortarse deprisa (principio del tamaño). El número es cuánto se ha acortado (−) o alargado (+) el tendón respecto al brazo colgando. Estimación por velocidad de acortamiento: todavía no cuenta el peso del brazo ni la carga.</p>
+        <p class="note">Cada cuadro es una unidad motora, de la pequeña a la grande. Se encienden en ese orden (principio del tamaño) cuando el músculo tiene que sostener el peso del brazo o acortarse deprisa. La primera cifra es la fuerza que hace el tendón para que el brazo no caiga en esa postura (N); la segunda, cuánto se ha acortado (−) o alargado (+) respecto al brazo colgando. Cuenta el peso de las piezas del modelo y una mano de 500 g; todavía no cuenta objetos en la mano ni la inercia al moverse deprisa. Si arriba aparece «N·m sin equilibrar», en esa postura los músculos del modelo no pueden sostener el brazo del todo sin que gire.</p>
       </div>
     </div>
 
@@ -1464,7 +1465,33 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
   var HAND_PARTS = [palm, fingers, thumb, ee];
   HAND_PARTS.forEach(function (o) { o.userData.y0 = o.position.y; });
   var musRows = {}, UNIT_RANK = { S: 0, M: 1, L: 2 }, V_REF = 40;   // mm/s de acortamiento que encienden todas las unidades
+  // Peso del brazo. Fuerza máxima de un paquete con todas sus unidades encendidas: valor de diseño provisional,
+  // unos 40 N por unidad motora (P4 = 4 unidades, P3 = 3). Con él, sostener el brazo recto al frente pide
+  // a los deltoides algo más de la mitad de su fuerza, que es lo que se espera de un músculo sano.
+  var G_ACC = 9.81, HAND_KG = 0.5, F_MAX = { P4: 160, P3: 120 };
+  // Coste de llevar un músculo al 100 % en (N·m)²: es pequeño frente al par, así que apenas resta precisión,
+  // pero hace que los músculos que ayudan en el mismo sentido se repartan el trabajo en vez de cargarlo uno solo.
+  var HOLD_LAMBDA = 0.01;
+  var bioMass = {}, bioTau = [0, 0, 0, 0, 0, 0, 0], bioHoldA = [], bioResid = 0;
   function bioB64(s, Tipo) { var bin = atob(s), n = bin.length, u8 = new Uint8Array(n); for (var k = 0; k < n; k++) u8[k] = bin.charCodeAt(k); return new Tipo(u8.buffer); }
+  // Centro del volumen de una malla (mm, en la pieza). Si la malla no está cerrada y el resultado se sale
+  // de la caja que la envuelve, se usa la media de los vértices.
+  function bioCentroid(m) {
+    var P = bioB64(m.p, Float32Array), I = bioB64(m.i, m.i16 ? Uint16Array : Uint32Array), V = 0, cx = 0, cy = 0, cz = 0;
+    var lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], sx = 0, sy = 0, sz = 0, nv = P.length / 3, k;
+    for (k = 0; k < P.length; k += 3) {
+      for (var d = 0; d < 3; d++) { lo[d] = Math.min(lo[d], P[k + d]); hi[d] = Math.max(hi[d], P[k + d]); }
+      sx += P[k]; sy += P[k + 1]; sz += P[k + 2];
+    }
+    for (k = 0; k < I.length; k += 3) {
+      var a = I[k] * 3, b = I[k + 1] * 3, c = I[k + 2] * 3;
+      var v = (P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c])) / 6;
+      V += v; cx += v * (P[a] + P[b] + P[c]) / 4; cy += v * (P[a + 1] + P[b + 1] + P[c + 1]) / 4; cz += v * (P[a + 2] + P[b + 2] + P[c + 2]) / 4;
+    }
+    var r = Math.abs(V) > 1e-6 ? [cx / V, cy / V, cz / V] : null;
+    if (!r || r.some(function (x, i) { return x < lo[i] - 1 || x > hi[i] + 1; })) r = [sx / nv, sy / nv, sz / nv];
+    return r;
+  }
   function bonito(n) { n = n.replace(/_/g, ' '); return n.charAt(0).toUpperCase() + n.slice(1); }
   function bioBuild(modelo, mallas) {
     var geos = {}, artic = {}, porId = {};
@@ -1474,11 +1501,21 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     bioGeo.wrist.fromArray(porId.G4.origen_en_padre).multiplyScalar(0.001);
     bioGeo.axis.fromArray(artic.antebrazo_pronacion.eje).normalize();
     bioData = { modelo: modelo, lim: BIO_MAP.map(function (id) { return artic[id].rango; }) };
+    var cent = {};
     modelo.grupos.forEach(function (gr) {
       var c = new THREE.Group(); c.scale.setScalar(0.001); c.visible = false; bioCont[gr.id] = c;
       (gr.id === 'G0' ? bioRoot : g[BIO_PARENT[gr.id]]).add(c);
+      var acc = { kg: 0, x: 0, y: 0, z: 0 };                    // masa y centro de masas del grupo (mm, en el grupo)
       gr.instancias.forEach(function (it) {
-        if (it.pieza === 'mano_referencia') return;            // la mano animada del simulador ocupa su lugar
+        if (it.pieza === 'mano_referencia') return;            // la mano animada del simulador ocupa su lugar (su peso va aparte: HAND_KG)
+        var inf = modelo.piezas[it.pieza];
+        if (inf && inf.masa_g) {
+          var cl = cent[it.pieza] || (cent[it.pieza] = mallas[it.pieza] ? bioCentroid(mallas[it.pieza]) : [0, 0, 0]), R0 = it.R, t0 = it.t, kg = inf.masa_g / 1000;
+          acc.kg += kg;
+          acc.x += kg * (R0[0][0] * cl[0] + R0[0][1] * cl[1] + R0[0][2] * cl[2] + t0[0]);
+          acc.y += kg * (R0[1][0] * cl[0] + R0[1][1] * cl[1] + R0[1][2] * cl[2] + t0[1]);
+          acc.z += kg * (R0[2][0] * cl[0] + R0[2][1] * cl[1] + R0[2][2] * cl[2] + t0[2]);
+        }
         var m = mallas[it.pieza], info = modelo.piezas[it.pieza];
         if (!m || !info) return;
         if (!geos[it.pieza]) {
@@ -1496,6 +1533,7 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
         c.add(mesh);
         if (unidad) (bioUnits[it.de] = bioUnits[it.de] || []).push({ mesh: mesh, size: it.pieza.slice(-1) });
       });
+      if (gr.id !== 'G0' && acc.kg > 0) bioMass[gr.id] = { kg: acc.kg, c: new THREE.Vector3(acc.x / acc.kg, acc.y / acc.kg, acc.z / acc.kg) };
     });
     var geoCil = new THREE.CylinderGeometry(1, 1, 1, 8), matTend = new THREE.MeshStandardMaterial({ color: 0xf2ecd2, roughness: 0.6 });
     var extra = [], list = $('musList');
@@ -1508,9 +1546,9 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       var row = document.createElement('div'); row.className = 'mrow'; row.title = m.accion + ' (copia a: ' + m.copia_a + ')';
       var cells = '<span class="mid">' + m.id + '</span><span class="mname">' + bonito(m.nombre) + '</span><span class="units">';
       us.forEach(function (u) { cells += '<i class="u ' + u.size + '"></i>'; });
-      row.innerHTML = cells + '</span><span class="dl">0,0 mm</span>';
+      row.innerHTML = cells + '</span><span class="fn">0 N</span><span class="dl">0,0 mm</span>';
       list.appendChild(row);
-      musRows[m.id] = { row: row, units: row.querySelectorAll('.u'), dl: row.querySelector('.dl') };
+      musRows[m.id] = { row: row, units: row.querySelectorAll('.u'), dl: row.querySelector('.dl'), fn: row.querySelector('.fn') };
       // puntos que vigila el freno de seguridad: el centro de cada paquete de músculo del brazo y del antebrazo
       var parent = BIO_PARENT[m.grupo];
       if (parent !== 2 && parent !== 4) return;
@@ -1567,11 +1605,93 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     try { localStorage.setItem('simulador-brazo-modelo', on ? 'bio' : 'simple'); } catch (e) {}
     bioInfo(); condChanged(); renderResults();
   }
+  // ---- peso del brazo: qué fuerza tiene que hacer cada músculo para sostenerlo quieto ----
+  function bioIdx(grupo) { return grupo === 'G0' ? -1 : BIO_PARENT[grupo]; }   // última articulación que mueve ese grupo
+  var bgP = new THREE.Vector3();
+  // Par que hace el peso en cada articulación (N·m, positivo = en el sentido en que crece su ángulo).
+  function bioGravity() {
+    frames();
+    var tau = [0, 0, 0, 0, 0, 0, 0];
+    function add(p, kg, last) {                  // peso kg·g hacia abajo aplicado en p, que mueven las articulaciones 0..last
+      var fy = -kg * G_ACC;
+      for (var k = 0; k <= last; k++) tau[k] += ja[k].x * (-(p.z - jo[k].z) * fy) + ja[k].z * ((p.x - jo[k].x) * fy);   // eje · (r × F)
+    }
+    for (var id in bioMass) add(bioCont[id].localToWorld(bgP.copy(bioMass[id].c)), bioMass[id].kg, BIO_PARENT[id]);
+    add(bgP.setFromMatrixPosition(palm.matrixWorld), HAND_KG, 6);   // mano comercial, en el centro de la palma
+    return tau;
+  }
+  // Brazo de momento r_k = dL/dq_k (m/rad) de un tendón: cuánto cambia su largo al girar cada articulación.
+  // Es la derivada del largo, calculada exacta tramo a tramo (cada punto se mueve ja × (p − jo) si la articulación lo arrastra);
+  // __sim.bioLoad la compara con la derivada numérica de bioLength.
+  var baA = new THREE.Vector3(), baB = new THREE.Vector3(), baU = new THREE.Vector3(), baV = new THREE.Vector3(), baW = new THREE.Vector3();
+  function bioArms(m) {
+    frames();
+    var r = [0, 0, 0, 0, 0, 0, 0], ia = bioIdx(m.ruta[0].grupo);
+    bioPoint(m.ruta[0], baA);
+    for (var s = 1; s < m.ruta.length; s++) {
+      var ib = bioIdx(m.ruta[s].grupo);
+      bioPoint(m.ruta[s], baB);
+      baU.subVectors(baB, baA).normalize();
+      for (var k = 0; k <= Math.max(ia, ib); k++) {
+        baV.set(0, 0, 0);
+        if (ib >= k) baV.add(baW.subVectors(baB, jo[k]).cross(ja[k]).negate());   // ja × (B − jo)
+        if (ia >= k) baV.sub(baW.subVectors(baA, jo[k]).cross(ja[k]).negate());
+        r[k] += baU.dot(baV);
+      }
+      baA.copy(baB); ia = ib;
+    }
+    return r;
+  }
+  // Mínimos cuadrados con x ≥ 0 (Lawson y Hanson) sobre H x = b: los músculos solo tiran.
+  function nnls(H, b) {
+    var n = b.length, x = [], inP = [], i, j, it;
+    for (i = 0; i < n; i++) { x.push(0); inP.push(false); }
+    function grad() { var w = []; for (var a = 0; a < n; a++) { var s = b[a]; for (var c = 0; c < n; c++) s -= H[a][c] * x[c]; w.push(s); } return w; }
+    var w = grad();
+    for (it = 0; it < 3 * n; it++) {
+      var jm = -1, wm = 1e-9;
+      for (i = 0; i < n; i++) if (!inP[i] && w[i] > wm) { wm = w[i]; jm = i; }
+      if (jm < 0) break;
+      inP[jm] = true;
+      for (var inner = 0; inner < 3 * n; inner++) {
+        var idx = [];
+        for (i = 0; i < n; i++) if (inP[i]) idx.push(i);
+        var z = solveLinear(idx.map(function (a) { return idx.map(function (c) { return H[a][c]; }); }), idx.map(function (a) { return b[a]; }));
+        if (z.every(function (v) { return v > 1e-12; })) { for (j = 0; j < n; j++) x[j] = 0; idx.forEach(function (a, t) { x[a] = z[t]; }); break; }
+        var al = 1;
+        idx.forEach(function (a, t) { if (z[t] <= 1e-12) al = Math.min(al, x[a] / (x[a] - z[t])); });
+        idx.forEach(function (a, t) { x[a] += al * (z[t] - x[a]); if (x[a] <= 1e-12) { x[a] = 0; inP[a] = false; } });
+      }
+      w = grad();
+    }
+    return x;
+  }
+  // Activación (0–1, puede pasar de 1 si el brazo pesa más de lo que pueden los músculos) que necesita cada
+  // músculo para que la suma de sus pares equilibre el peso: Σ_j r_kj · F_j = τ_k, con F_j ≥ 0.
+  // Una articulación apoyada en su tope (el codo estirado, por ejemplo) no pide músculo si el peso empuja contra el tope.
+  function bioHold() {
+    var tau = bioGravity(), M = bioData.modelo.musculos, n = M.length, A = [], H = [], b = [], i, j, k;
+    for (k = 0; k < N; k++) {
+      var lo = JOINTS[k].min * DEG, hi = JOINTS[k].max * DEG;
+      if ((q[k] <= lo + 0.01 && tau[k] < 0) || (q[k] >= hi - 0.01 && tau[k] > 0)) tau[k] = 0;
+    }
+    for (j = 0; j < n; j++) { var r = bioArms(M[j]), f = F_MAX[M[j].paquete] || F_MAX.P3; A.push(r.map(function (x) { return x * f; })); }   // N·m por unidad de activación
+    for (i = 0; i < n; i++) {
+      H.push([]); var s = 0;
+      for (k = 0; k < N; k++) s += A[i][k] * tau[k];
+      b.push(s);
+      for (j = 0; j < n; j++) { var h = i === j ? HOLD_LAMBDA : 0; for (k = 0; k < N; k++) h += A[i][k] * A[j][k]; H[i].push(h); }
+    }
+    var x = nnls(H, b), res = 0;
+    for (k = 0; k < N; k++) { var t = -tau[k]; for (j = 0; j < n; j++) t += A[j][k] * x[j]; res = Math.max(res, Math.abs(t)); }
+    bioTau = tau; bioHoldA = x; bioResid = res;
+    return x;
+  }
   var bioDomAt = 0;
   function bioUpdate(dt) {
-    var now = performance.now(), dom = now > bioDomAt, working = 0;
+    var now = performance.now(), dom = now > bioDomAt, working = 0, hold = bioHold();
     if (dom) bioDomAt = now + 120;
-    bioData.modelo.musculos.forEach(function (m) {
+    bioData.modelo.musculos.forEach(function (m, jm) {
       var segs = bioTendons[m.id], L = 0;
       bioPoint(m.ruta[0], bvA);
       for (var k = 1; k < m.ruta.length; k++) {
@@ -1587,7 +1707,8 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       if (Math.abs(v) > 500) v = 0;                              // salto de pose al reiniciar: no es un movimiento
       bioLen[m.id] = L;
       var vs = bioVel[m.id] || 0; vs += (v - vs) * Math.min(1, dt / 0.12); bioVel[m.id] = vs;
-      var us = bioUnits[m.id] || [], n = us.length, a = clamp(-vs / V_REF, 0, 1), on = a < 0.05 ? 0 : Math.min(n, Math.ceil(a * n));
+      // activación = lo que pide acortarse deprisa + lo que pide sostener el peso; las unidades se encienden S → M → L
+      var us = bioUnits[m.id] || [], n = us.length, a = clamp(clamp(-vs / V_REF, 0, 1) + hold[jm], 0, 1), on = a < 0.05 ? 0 : Math.min(n, Math.ceil(a * n));
       if (on) working++;
       var row = musRows[m.id];
       if (bioOn[m.id] !== on) {
@@ -1601,9 +1722,17 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       if (dom && row) {
         var dl = L - (bioRef[m.id] * 1000);
         row.dl.textContent = (Math.abs(dl) < 0.05 ? '0,0' : (dl > 0 ? '+' : '−') + Math.abs(dl).toFixed(1).replace('.', ',')) + ' mm';
+        var fN = hold[jm] * (F_MAX[m.paquete] || F_MAX.P3);
+        row.fn.textContent = Math.round(fN) + ' N';
+        row.fn.title = 'Fuerza para sostener el brazo: ' + Math.round(fN) + ' N de ' + (F_MAX[m.paquete] || F_MAX.P3) + ' N que da el paquete ' + m.paquete + ' con todas sus unidades';
       }
     });
-    if (dom) $('musWork').textContent = working ? working + ' músculo' + (working > 1 ? 's' : '') + ' trabajando' : 'Brazo quieto';
+    if (dom) {
+      var mw = $('musWork'), falta = bioResid >= 0.1;
+      mw.textContent = (working ? working + ' músculo' + (working > 1 ? 's' : '') + ' trabajando' : 'Brazo quieto') +
+                       (falta ? ' · ' + bioResid.toFixed(1).replace('.', ',') + ' N·m sin equilibrar' : '');
+      mw.title = falta ? 'En esta postura ningún reparto de fuerzas (los músculos solo tiran) equilibra del todo el peso: queda este par en alguna articulación, que haría girar o caer el brazo.' : '';
+    }
   }
   (function cargarBio() {
     var J = function (u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); }); };
@@ -1668,6 +1797,31 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     tests: function () { return tests; },
     setBio: setBio,
     bioStep: function (dt) { if (bio) bioUpdate(dt); return bioOn; },
+    // Pone el brazo en una postura (grados), calcula el peso y devuelve por músculo la fuerza (N), la activación
+    // y las unidades encendidas; también el par del peso por articulación y la diferencia entre el brazo de
+    // momento exacto y el numérico (bioLength con ±0,5°). Con keep = true deja el brazo en esa postura.
+    bioLoad: function (deg, keep) {
+      if (!bio) return null;
+      var s = q.slice(), M = bioData.modelo.musculos, k;
+      q = deg.map(function (d) { return d * DEG; }); setPose();
+      bioLen = {}; bioVel = {}; bioDomAt = 0; bioUpdate(0);
+      var out = { tau: bioTau.map(function (t) { return +t.toFixed(3); }), resid: +bioResid.toFixed(4), mus: {}, armErr: 0 };
+      var arms = M.map(function (m) { return bioArms(m); }), h = 0.5 * DEG, q0 = q.slice();
+      for (k = 0; k < N; k++) {
+        q = q0.slice(); q[k] += h; setPose(); var Lp = M.map(bioLength);
+        q = q0.slice(); q[k] -= h; setPose(); var Lm = M.map(bioLength);
+        M.forEach(function (m, j) { out.armErr = Math.max(out.armErr, Math.abs((Lp[j] - Lm[j]) / (2 * h) - arms[j][k]) * 1000); });
+      }
+      q = q0; setPose();
+      M.forEach(function (m, j) {
+        var f = F_MAX[m.paquete] || F_MAX.P3;
+        out.mus[m.id] = { nombre: m.nombre, F: +(bioHoldA[j] * f).toFixed(1), a: +bioHoldA[j].toFixed(3), on: bioOn[m.id], de: (bioUnits[m.id] || []).length,
+                          r: arms[j].map(function (x) { return +(x * 1000).toFixed(1); }) };   // mm/rad
+      });
+      out.armErr = +out.armErr.toFixed(3);                          // mm/rad
+      if (!keep) { q = s; setPose(); bioLen = {}; bioVel = {}; }
+      return out;
+    },
     planErr: function () { return plan ? +plan.err.toFixed(4) : null; },
     probe: function (deg) { var s = q.slice(); q = deg.map(function (d) { return d * DEG; }); setPose(); var c = scan(); q = s; setPose(); scan(); return +c.toFixed(4); },
     state: function () {
