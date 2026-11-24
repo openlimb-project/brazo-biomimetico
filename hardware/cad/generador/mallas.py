@@ -2,7 +2,7 @@
 
 Para cada pieza suelda los vértices, calcula normales suaves respetando las aristas vivas
 (ángulo de pliegue) y guarda posiciones (float32), normales (int8) e índices en base64.
-Copia además modelo.json a simulador-brazo/modelo3d/.
+Copia además modelo.json a software/simulador/modelo3d/.
 """
 import base64
 import json
@@ -15,7 +15,7 @@ from array import array
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 ORIGEN = os.path.abspath(os.path.join(AQUI, "..", "brazo_v0"))
-DESTINO = os.path.abspath(os.path.join(AQUI, "..", "..", "simulador-brazo", "modelo3d"))
+DESTINO = os.path.abspath(os.path.join(AQUI, "..", "..", "..", "software", "simulador", "modelo3d"))
 PLIEGUE = math.cos(math.radians(38))
 
 

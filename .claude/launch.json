@@ -4,7 +4,7 @@
     {
       "name": "simulador-brazo",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "simulador-brazo"],
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "software/simulador"],
       "port": 8765
     }
   ]

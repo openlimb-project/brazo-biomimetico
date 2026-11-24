@@ -10,9 +10,10 @@ Gracias por querer ayudar. Se aceptan issues y pull requests en español o en in
 
 ## Reglas del proyecto
 
-- **`cad/generador/param.py` es la fuente de verdad del diseño.** No edites a mano las piezas de `cad/brazo_v0/`: cambia los parámetros y regenera.
+- **`hardware/cad/generador/param.py` es la fuente de verdad del diseño.** No edites a mano las piezas de `hardware/cad/brazo_v0/`: cambia los parámetros y regenera.
 - Si cambias la geometría, vuelve a ejecutar `mallas.py` para que el simulador cargue el modelo nuevo y adjunta los archivos regenerados.
 - Unidades: milímetros, grados y gramos.
+- El repositorio tiene dos secciones, `hardware/` y `software/`. Si tu cambio afecta a un dato que usa la otra sección (masa, par, rango articular, señal), actualízalo en `INTERFAZ.md`.
 - Cualquier afirmación sobre fisiología o neurociencia debe ir acompañada de su fuente (un artículo o un libro).
 
 ## Ideas para empezar

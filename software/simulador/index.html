@@ -283,8 +283,12 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
           </div>
           <div class="seg" role="group" aria-label="Nivel de sensación">
             <button type="button" id="sens_none" aria-pressed="false">Sin sensación</button>
-            <button type="button" id="sens_coarse" aria-pressed="false">Gruesa</button>
-            <button type="button" id="sens_fine" aria-pressed="false">Fina</button>
+            <button type="button" id="sens_coarse" aria-pressed="false">Gruesa · 12 cm</button>
+            <button type="button" id="sens_p8" aria-pressed="false">8 cm</button>
+            <button type="button" id="sens_p6" aria-pressed="false">6 cm</button>
+            <button type="button" id="sens_p4" aria-pressed="false">4 cm</button>
+            <button type="button" id="sens_fine" aria-pressed="false">Fina · 3 cm</button>
+            <button type="button" id="sens_dist" aria-pressed="false">Solo distancia</button>
           </div>
         </div>
       </div>
@@ -316,7 +320,8 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
         <tbody id="blindResults"></tbody>
       </table>
     </div>
-    <p class="note">Con el brazo oculto, tú decides cuándo crees que la mano está colocada y pulsas Enter. Se mide el error real en ese momento.</p>
+    <p class="note">Con el brazo oculto, tú decides cuándo crees que la mano está colocada y pulsas Enter. Se mide el error real en ese momento. El paso de la sensación (3, 4, 6, 8 o 12 cm) es el tamaño de cada casilla; la tolerancia es de 3 cm.</p>
+    <p class="note" id="senseLimit"></p>
   </section>
 
   <section class="card">
@@ -372,6 +377,8 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     r1: 'Pregunta de esta ronda: ¿cuánto ayuda que el brazo coordine solo sus articulaciones? La señal llega perfecta.',
     r2: 'Pregunta de esta ronda: ¿aguanta el control cuando la señal llega con ruido y retraso, como una señal muscular real?',
     r3: 'Pregunta de esta ronda: ¿cuánta sensación hace falta para colocar la mano sin verla? Solo ves el objeto y el panel de sensación.',
+    r4: 'Pregunta de esta ronda: ¿dónde está el límite entre la sensación fina (3 cm), con la que acertaste, y la gruesa (12 cm), con la que fallaste? El orden va salteado para que la práctica no decida el resultado.',
+    r4d: 'Pregunta de esta prueba: ¿basta un solo vibrador que diga cuán lejos estás, sin decir hacia dónde? Tiene la misma finura que la sensación fina (3 cm), así que la diferencia se debe solo a la falta de dirección.',
     rep: 'Se repite una prueba del principio para medir cuánto mejoraste solo por la práctica.'
   };
   var STEPS = [
@@ -387,6 +394,10 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     { id: 'r3f', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'fine' },
     { id: 'r3c', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'coarse' },
     { id: 'r3n', round: 'Ronda 3 · Sin ver el brazo', why: WHY.r3, mode: 'D', sig: 'real', hidden: true, sens: 'none' },
+    { id: 'r4p6', round: 'Ronda 4 · ¿Cuánta sensación basta?', why: WHY.r4, mode: 'D', sig: 'real', hidden: true, sens: 'p6' },
+    { id: 'r4p8', round: 'Ronda 4 · ¿Cuánta sensación basta?', why: WHY.r4, mode: 'D', sig: 'real', hidden: true, sens: 'p8' },
+    { id: 'r4p4', round: 'Ronda 4 · ¿Cuánta sensación basta?', why: WHY.r4, mode: 'D', sig: 'real', hidden: true, sens: 'p4' },
+    { id: 'r4d',  round: 'Ronda 4 · ¿Cuánta sensación basta?', why: WHY.r4d, mode: 'D', sig: 'real', hidden: true, sens: 'dist' },
     { id: 'rep', round: 'Control final', why: WHY.rep, mode: 'B', sig: 'ideal', rep: true }
   ];
   var TUT_ITEMS = [
@@ -864,7 +875,19 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
 
   // ---------- capa 3: sensación ----------
   // Cada eje se reparte en casillas; cada casilla representa un vibrador sobre la piel.
-  var SENSES = { none: { label: 'Ninguna', bin: 0, abin: 0 }, coarse: { label: 'Gruesa', bin: 0.12, abin: 30 }, fine: { label: 'Fina', bin: 0.03, abin: 7.5 } };
+  // «Solo distancia» es un único vibrador que dice cuán lejos está la mano del objeto, pero no hacia dónde.
+  var SENSES = {
+    none:   { label: 'Ninguna',        bin: 0,    abin: 0 },
+    coarse: { label: 'Gruesa · 12 cm', bin: 0.12, abin: 30 },
+    p8:     { label: '8 cm',           bin: 0.08, abin: 20 },
+    p6:     { label: '6 cm',           bin: 0.06, abin: 15 },
+    p4:     { label: '4 cm',           bin: 0.04, abin: 10 },
+    fine:   { label: 'Fina · 3 cm',    bin: 0.03, abin: 7.5 },
+    dist:   { label: 'Solo distancia · 3 cm', bin: 0.03, abin: 7.5, dist: true }
+  };
+  var SENSE_ORDER = ['none', 'coarse', 'p8', 'p6', 'p4', 'fine', 'dist'];
+  var SENSE_STEPS = ['fine', 'p4', 'p6', 'p8', 'coarse'];   // de más fina a más gruesa, para buscar el límite
+  var DIST_BINS = 10;                                        // el vibrador de distancia cubre hasta 10 pasos (30 cm)
   var AXES3 = [
     { label: 'Izquierda – derecha', k: 'x', min: -0.21, max: 0.45 },
     { label: 'Abajo – arriba',      k: 'y', min: -0.66, max: 0.36 },
@@ -886,7 +909,7 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     sctx.font = '11px Inter, system-ui, sans-serif'; sctx.textAlign = 'left';
     var muted = cssVar('--muted'), cArm = cssVar('--arm'), cBg = cssVar('--bg'), cTar = cssVar('--target');
     if (sens === 'none') { sctx.fillStyle = muted; sctx.fillText('Sin sensación: no llega ninguna información del brazo.', 0, 14); return; }
-    var S = SENSES[sens], p = sensed(), rowH = h / 4;
+    var S = SENSES[sens], p = sensed(), rowH = h / 4, na = Math.round(90 / S.abin);
     function row(a, label, n, iHand, iTar) {
       var y = a * rowH, segW = w / n, top = y + 15, hh = rowH - 20;
       sctx.fillStyle = muted; sctx.fillText(label, 0, y + 11);
@@ -896,11 +919,16 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
         if (s === iTar) { sctx.strokeStyle = cTar; sctx.lineWidth = 2; sctx.strokeRect(s * segW + 1, top + 1, Math.max(1, segW - 2), hh - 2); }
       }
     }
+    if (S.dist) {
+      var d = running ? Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z) : -1;
+      row(0, 'Distancia al objeto (en el objeto – lejos), sin decir hacia dónde', DIST_BINS, running ? clamp(Math.floor(d / S.bin), 0, DIST_BINS - 1) : -1, running ? 0 : -1);
+      row(1, 'Giro respecto al objeto (alineado – cruzado)', na, running ? clamp(Math.floor((p.ang / DEG) / S.abin), 0, na - 1) : -1, running ? 0 : -1);
+      return;
+    }
     for (var a = 0; a < 3; a++) {
       var ax = AXES3[a], n = Math.ceil((ax.max - ax.min) / S.bin - 1e-9);
       row(a, ax.label, n, clamp(Math.floor((p[ax.k] - ax.min) / S.bin), 0, n - 1), running ? clamp(Math.floor((target[ax.k] - ax.min) / S.bin), 0, n - 1) : -1);
     }
-    var na = Math.round(90 / S.abin);
     row(3, 'Giro respecto al objeto (alineado – cruzado)', na, running ? clamp(Math.floor((p.ang / DEG) / S.abin), 0, na - 1) : -1, running ? 0 : -1);
   }
 
@@ -915,13 +943,14 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     if (tab === 'free') { rep = false; count = 8; }
     $('senseCard').hidden = !(armHidden || sens !== 'none');
     $('senseInfo').textContent = sens === 'none' ? 'En esta prueba no llega ninguna información del brazo.'
+      : SENSES[sens].dist ? 'Un solo vibrador: cada casilla son ' + Math.round(SENSES[sens].bin * 100) + ' cm más lejos del objeto, pero no dice hacia dónde. La primera casilla (con borde) es estar en el objeto. Sirve para comparar con un mapa de varios vibradores, que sí dice la dirección.'
       : 'Cada casilla es un vibrador: cubre ' + Math.round(SENSES[sens].bin * 100) + ' cm de posición o ' + SENSES[sens].abin + '° de giro. La casilla llena es la mano; la casilla con borde es el objeto. En una prótesis esto se sentiría en la piel; aquí se ve en pantalla.';
     $('sigInfo').textContent = sigText(sig);
     renderDeck(); renderCover();
   }
   function setMode(m) { if (running) return; mode = m; press3('mode', MODE_ORDER, m); condChanged(); }
   function setSignal(s) { if (running) return; sig = s; press3('sig_', ['ideal', 'real', 'bad'], s); condChanged(); }
-  function setSense(s) { if (running) return; sens = s; press3('sens_', ['none', 'coarse', 'fine'], s); condChanged(); }
+  function setSense(s) { if (running) return; sens = s; press3('sens_', SENSE_ORDER, s); condChanged(); }
   function setArm(hidden) {
     if (running) return;
     armHidden = hidden; g[0].visible = !hidden; trail.visible = !hidden; dropH.visible = !hidden; bioRoot.visible = bio && !hidden;
@@ -1294,10 +1323,30 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       MODE_ORDER.forEach(function (m) { ['|vis|bio', '|vis|rep|bio'].forEach(function (k) { var r = tests[m + '|' + s + k]; if (r) fn(r, s, m); }); });
     });
   }
+  var BLIND_ORDER = ['fine', 'p4', 'p6', 'p8', 'coarse', 'dist', 'none'];
+  // Límite de la sensación: el paso más grueso con el que aún se aciertan al menos 6 de 8 (75 %),
+  // con la señal con ruido y «Guiar con ayuda», que es la condición del recorrido.
+  var PASS = 0.75;
+  function senseLimit() {
+    function rec(se) { return tests['D|real|' + se + '|bio'] || tests['D|real|' + se]; }
+    var tried = SENSE_STEPS.filter(function (se) { return rec(se); });
+    if (tried.length < 2) return null;
+    var ok = tried.filter(function (se) { var r = rec(se); return r.n / r.total >= PASS; });
+    var best = ok.length ? ok[ok.length - 1] : null;
+    var firstFail = tried.filter(function (se) { var r = rec(se); return r.n / r.total < PASS; })[0] || null;
+    var txt = best ? 'Límite estimado: con pasos de hasta ' + Math.round(SENSES[best].bin * 100) + ' cm aciertas al menos 6 de 8'
+      : 'Con ningún paso probado aciertas 6 de 8';
+    txt += firstFail ? '; con ' + Math.round(SENSES[firstFail].bin * 100) + ' cm ya no.' : '; aún no has probado un paso con el que falles.';
+    var holes = SENSE_STEPS.filter(function (se) { return !rec(se); });
+    if (holes.length) txt += ' Sin probar: ' + holes.map(function (se) { return Math.round(SENSES[se].bin * 100) + ' cm'; }).join(', ') + '.';
+    var dr = rec('dist'), fr = rec('fine');
+    if (dr && fr) txt += ' Un solo vibrador de distancia: ' + dr.n + ' de ' + dr.total + ', frente a ' + fr.n + ' de ' + fr.total + ' con el mapa de 3 cm.';
+    return txt;
+  }
   function eachBlind(fn) {
     ['ideal', 'real', 'bad'].forEach(function (s) {
-      MODE_ORDER.forEach(function (m) { ['fine', 'coarse', 'none'].forEach(function (se) { fn(tests[m + '|' + s + '|' + se], s, m, se); }); });
-      MODE_ORDER.forEach(function (m) { ['fine', 'coarse', 'none'].forEach(function (se) { var r = tests[m + '|' + s + '|' + se + '|bio']; if (r) fn(r, s, m, se); }); });
+      MODE_ORDER.forEach(function (m) { BLIND_ORDER.forEach(function (se) { fn(tests[m + '|' + s + '|' + se], s, m, se); }); });
+      MODE_ORDER.forEach(function (m) { BLIND_ORDER.forEach(function (se) { var r = tests[m + '|' + s + '|' + se + '|bio']; if (r) fn(r, s, m, se); }); });
     });
   }
   function renderResults() {
@@ -1311,6 +1360,8 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       if (r) rowOf(bb, blindCells(r));
       else if (s === 'real' && m === 'D') rowOf(bb, [SIGNALS[s].label, MODES[m].label, SENSES[se].label, 'sin probar', '–', '–', '–', '–'], true);
     });
+    var lim = senseLimit();
+    $('senseLimit').textContent = lim || 'Cuando pruebes al menos dos pasos de sensación (ronda 4 del recorrido), aquí aparecerá con qué paso empiezas a fallar.';
   }
   function report() {
     var L = ['SIMULADOR DE BRAZO · resultados', 'Fecha: ' + new Date().toLocaleString(), '', 'BRAZO VISIBLE',
@@ -1318,6 +1369,7 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
     eachVisible(function (r) { if (r) { var c = visCells(r); c.splice(6, 0, r.mode === 'A' ? fmt(r.switches, 1) : '0'); L.push(c.join(' | ')); } });
     L.push('', 'BRAZO OCULTO', 'señal | modo | sensación | dentro de tolerancia | error cm | error ° | tiempo s | dificultad');
     eachBlind(function (r) { if (r) L.push(blindCells(r).join(' | ')); });
+    var lim = senseLimit(); if (lim) L.push('', 'LÍMITE DE LA SENSACIÓN', lim);
     L.push('', 'Pasos del recorrido hechos: ' + STEPS.filter(function (s) { return done[s.id]; }).length + ' de ' + STEPS.length);
     return L.join('\n');
   }
@@ -1425,7 +1477,7 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
   function onClick(id, fn) { $(id).addEventListener('click', function (e) { fn(); e.currentTarget.blur(); }); }
   MODE_ORDER.forEach(function (m) { onClick('mode' + m, function () { setMode(m); }); });
   ['ideal', 'real', 'bad'].forEach(function (s) { onClick('sig_' + s, function () { setSignal(s); }); });
-  ['none', 'coarse', 'fine'].forEach(function (s) { onClick('sens_' + s, function () { setSense(s); }); });
+  SENSE_ORDER.forEach(function (s) { onClick('sens_' + s, function () { setSense(s); }); });
   onClick('model_bio', function () { setBio(true); });
   onClick('model_simple', function () { setBio(false); });
   onClick('arm_on', function () { setArm(false); });
@@ -1669,12 +1721,15 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
   // Activación (0–1, puede pasar de 1 si el brazo pesa más de lo que pueden los músculos) que necesita cada
   // músculo para que la suma de sus pares equilibre el peso: Σ_j r_kj · F_j = τ_k, con F_j ≥ 0.
   // Una articulación apoyada en su tope (el codo estirado, por ejemplo) no pide músculo si el peso empuja contra el tope.
-  function bioHold() {
-    var tau = bioGravity(), M = bioData.modelo.musculos, n = M.length, A = [], H = [], b = [], i, j, k;
-    for (k = 0; k < N; k++) {
+  function bioTopes(tau) {
+    for (var k = 0; k < N; k++) {
       var lo = JOINTS[k].min * DEG, hi = JOINTS[k].max * DEG;
       if ((q[k] <= lo + 0.01 && tau[k] < 0) || (q[k] >= hi - 0.01 && tau[k] > 0)) tau[k] = 0;
     }
+    return tau;
+  }
+  function bioHold() {
+    var tau = bioTopes(bioGravity()), M = bioData.modelo.musculos, n = M.length, A = [], H = [], b = [], i, j, k;
     for (j = 0; j < n; j++) { var r = bioArms(M[j]), f = F_MAX[M[j].paquete] || F_MAX.P3; A.push(r.map(function (x) { return x * f; })); }   // N·m por unidad de activación
     for (i = 0; i < n; i++) {
       H.push([]); var s = 0;
@@ -1820,6 +1875,20 @@ textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; w
       });
       out.armErr = +out.armErr.toFixed(3);                          // mm/rad
       if (!keep) { q = s; setPose(); bioLen = {}; bioVel = {}; }
+      return out;
+    },
+    // Para el optimizador de inserciones (cad/optimizador/): en una postura (grados) devuelve el par del peso
+    // por articulación (ya con los topes), la posición y el eje de cada articulación y la matriz de cada grupo
+    // (todo en metros, coordenadas del mundo; matrices en columnas, como Three.js, con la escala mm → m incluida).
+    bioFrames: function (deg) {
+      if (!bio) return null;
+      var s = q.slice();
+      q = deg.map(function (d) { return d * DEG; }); setPose(); frames();
+      var out = { q: deg.slice(), tau: bioTopes(bioGravity()), jo: jo.map(function (v) { return v.toArray(); }), ja: ja.map(function (v) { return v.toArray(); }), grupos: {},
+                 mano: bgP.setFromMatrixPosition(palm.matrixWorld).toArray(), masas: {} };
+      Object.keys(bioMass).forEach(function (id) { out.masas[id] = { kg: bioMass[id].kg, c: bioMass[id].c.toArray() }; });
+      Object.keys(bioCont).forEach(function (id) { out.grupos[id] = Array.prototype.slice.call(bioCont[id].matrixWorld.elements); });
+      q = s; setPose();
       return out;
     },
     planErr: function () { return plan ? +plan.err.toFixed(4) : null; },

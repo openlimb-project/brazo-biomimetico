@@ -4,7 +4,7 @@ SPDX-License-Identifier: CERN-OHL-W-2.0
 
 Copyright (c) 2026 Los colaboradores de Brazo Biomimético Abierto
 
-El diseño físico del brazo está bajo la **CERN Open Hardware Licence Version 2 – Weakly Reciprocal (CERN-OHL-W v2)**. Esto incluye los modelos CAD de `cad/` (`.SLDPRT`, `.SLDASM`, `.STL`), los parámetros de `cad/generador/param.py` y los archivos de geometría que el simulador carga desde `simulador-brazo/modelo3d/`.
+El diseño físico del brazo está bajo la **CERN Open Hardware Licence Version 2 – Weakly Reciprocal (CERN-OHL-W v2)**. Esto incluye los modelos CAD de `hardware/cad/` (`.SLDPRT`, `.SLDASM`, `.STL`), los parámetros de `hardware/cad/generador/param.py` y los archivos de geometría que el simulador carga desde `software/simulador/modelo3d/`.
 
 Texto oficial completo: <https://ohwr.org/cern_ohl_w_v2.txt>
 

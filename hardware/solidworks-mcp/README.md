@@ -7,7 +7,7 @@ por COM. Lo hicimos a medida porque los conectores públicos piden SolidWorks 20
 
 1. Abre una sesión de Claude Code en `Experimento_#001` (ahí está `.mcp.json` con la entrada
    `solidworks`). Si la sesión ya estaba abierta, reiníciala para que cargue el servidor.
-   Los archivos de SolidWorks del brazo van en `../cad/`; el simulador web está en `../simulador-brazo/`.
+   Los archivos de SolidWorks del brazo van en `../cad/`; el simulador web está en `../../software/simulador/`.
 2. SolidWorks no necesita estar abierto: el conector lo arranca solo. Si ya está abierto, se engancha
    a esa ventana. No lo minimices mientras Claude toma capturas.
 3. Pídele a Claude cosas como "haz una falange de 40 mm entre ejes con pasador de 3 mm y

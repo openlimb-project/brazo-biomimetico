@@ -8,19 +8,30 @@ Prótesis de brazo completo, del hombro a la muñeca, diseñada imitando al braz
 
 ## Qué hay aquí
 
+El proyecto está dividido en dos secciones que avanzan a la vez. Cada una tiene su `ESTADO.md` (dónde estamos, decisiones, pendientes) y su `BITACORA.md` (qué se hizo en cada sesión). Lo que une a las dos (masas, pares, articulaciones, señales) está en [`INTERFAZ.md`](INTERFAZ.md).
+
+**[`hardware/`](hardware/)**: construcción del brazo, diseño, pruebas físicas e investigación.
+
 | Carpeta | Contenido | Licencia |
 |---|---|---|
-| [`simulador-brazo/`](simulador-brazo/) | Simulador musculoesquelético en el navegador (HTML + JS, sin instalación) y visor 3D del modelo | MIT |
-| [`cad/generador/`](cad/generador/) | Generador paramétrico: `param.py` es la fuente de verdad y `generar.py` construye el brazo en SolidWorks | MIT (código) / CERN-OHL-W (parámetros) |
-| [`cad/brazo_v0/`](cad/brazo_v0/) | Modelo generado: 31 piezas, 15 músculos, 52 unidades motoras, 7 grados de libertad, unos 1,6 kg sin mano. Incluye STL | CERN-OHL-W |
-| [`solidworks-mcp/`](solidworks-mcp/) | Servidor MCP que deja a Claude (u otro cliente MCP) controlar **SolidWorks 2020** por COM: 22 herramientas de croquis, extrusión, ensambles, materiales, capturas… | MIT |
+| [`hardware/cad/generador/`](hardware/cad/generador/) | Generador paramétrico: `param.py` es la fuente de verdad y `generar.py` construye el brazo en SolidWorks | MIT (código) / CERN-OHL-W (parámetros) |
+| [`hardware/cad/brazo_v0/`](hardware/cad/brazo_v0/) | Modelo generado: 31 piezas, 15 músculos, 52 unidades motoras, 7 grados de libertad. Incluye STL | CERN-OHL-W |
+| [`hardware/cad/actuador_v1/`](hardware/cad/actuador_v1/) | Dimensionado de los packs de unidades motoras | CERN-OHL-W |
+| [`hardware/solidworks-mcp/`](hardware/solidworks-mcp/) | Servidor MCP que deja a Claude (u otro cliente MCP) controlar **SolidWorks 2020** por COM: 22 herramientas de croquis, extrusión, ensambles, materiales, capturas… | MIT |
+
+**[`software/`](software/)**: control del brazo y conexión con el sistema nervioso.
+
+| Carpeta | Contenido | Licencia |
+|---|---|---|
+| [`software/simulador/`](software/simulador/) | Simulador musculoesquelético en el navegador (HTML + JS, sin instalación) y visor 3D del modelo | MIT |
+| [`software/pruebas/`](software/pruebas/) | Resultados de las pruebas con el simulador | MIT |
 
 ## Cómo probarlo
 
 **Simulador (no necesita nada más que Python o un navegador):**
 
 ```bash
-python -m http.server 8765 --directory simulador-brazo
+python -m http.server 8765 --directory software/simulador
 ```
 
 Después abre <http://localhost:8765>.
@@ -28,14 +39,14 @@ Después abre <http://localhost:8765>.
 **Regenerar el CAD (Windows + SolidWorks 2020 o más nuevo):**
 
 ```bash
-py -3.14 -m venv solidworks-mcp\.venv
-solidworks-mcp\.venv\Scripts\python.exe -m pip install "mcp[cli]" pywin32 pillow
-solidworks-mcp\.venv\Scripts\python.exe cad\generador\generar.py
+py -3.14 -m venv hardware\solidworks-mcp\.venv
+hardware\solidworks-mcp\.venv\Scripts\python.exe -m pip install "mcp[cli]" pywin32 pillow
+hardware\solidworks-mcp\.venv\Scripts\python.exe hardware\cad\generador\generar.py
 ```
 
-La generación completa tarda alrededor de una hora. Si se interrumpe, retómala con `--faltan` o con `--desde <etapa>`. Después ejecuta `cad\generador\mallas.py` para actualizar el visor del simulador.
+La generación completa tarda alrededor de una hora. Si se interrumpe, retómala con `--faltan` o con `--desde <etapa>`. Después ejecuta `hardware\cad\generador\mallas.py` para actualizar el visor del simulador.
 
-**Usar el conector de SolidWorks con Claude Code:** copia `.mcp.example.json` a `.mcp.json` y abre Claude Code en esta carpeta. Los detalles están en [`solidworks-mcp/README.md`](solidworks-mcp/README.md).
+**Usar el conector de SolidWorks con Claude Code:** copia `.mcp.example.json` a `.mcp.json` y abre Claude Code en esta carpeta. Los detalles están en [`hardware/solidworks-mcp/README.md`](hardware/solidworks-mcp/README.md).
 
 ## Arquitectura (hipótesis de trabajo)
 

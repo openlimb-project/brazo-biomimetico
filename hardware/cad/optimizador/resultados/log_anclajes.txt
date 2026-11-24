@@ -1,0 +1,9 @@
+Diseño v0: {"coste": 5.4783, "par_sin_equilibrar_max_Nm": 1.39, "par_sin_equilibrar_medio_Nm": 0.222, "posturas_con_mas_de_0_1_Nm": 60, "peor_postura": [30, 0, 30, 90, 0, 0, 0], "esfuerzo_medio": 0.594, "activacion_max": 3.654, "activacion_media_por_musculo": {"M01": 0.234, "M02": 0.092, "M03": 0.059, "M04": 0.112, "M05": 0.228, "M06": 0.094}, "recorrido_mm": {"M01": 142.0, "M02": 85.6, "M03": 123.2, "M04": 119.5, "M05": 43.6, "M06": 54.1}, "invasion_holgura_mm2": {"M01": 2766.0, "M02": 2143.0, "M03": 1240.0, "M04": 1434.0, "M05": 3832.0, "M06": 1970.0}, "posturas": 144}
+  semilla  0 (v0     ): coste   1.7234   [  204 s]
+  semilla  1 (azar 1 ): coste   0.1662   [  400 s]
+  semilla  2 (azar 2 ): coste   0.1198   [  613 s]
+  semilla  3 (azar 3 ): coste   3.2568   [  813 s]
+  semilla  4 (azar 4 ): coste   0.0976   [ 1000 s]
+  semilla  5 (azar 5 ): coste  44.0877   [ 1196 s]
+Mejor: {"coste": 1.0649, "par_sin_equilibrar_max_Nm": 1.032, "par_sin_equilibrar_medio_Nm": 0.023, "posturas_con_mas_de_0_1_Nm": 5, "peor_postura": [150, 90, -30, 90, 0, 0, 0], "esfuerzo_medio": 0.113, "activacion_max": 1.203, "activacion_media_por_musculo": {"M01": 0.16, "M02": 0.119, "M03": 0.104, "M04": 0.065, "M05": 0.026, "M06": 0.072}, "recorrido_mm": {"M01": 146.1, "M02": 110.5, "M03": 89.8, "M04": 59.3, "M05": 50.6, "M06": 67.6}, "invasion_holgura_mm2": {"M01": 1618.0, "M02": 742.0, "M03": 981.0, "M04": 955.0, "M05": 624.0, "M06": 1970.0}, "posturas": 144}
+Guardado en cad\optimizador\resultados\hombro_anclajes.json
