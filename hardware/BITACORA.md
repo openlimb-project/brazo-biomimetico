@@ -3,6 +3,11 @@
 Una entrada por sesión, la más nueva arriba. Solo se añade, no se reescribe. El estado actual está en [`ESTADO.md`](ESTADO.md).
 Las entradas anteriores al 2026-11-23 se reconstruyeron a partir de las notas del proyecto.
 
+## 2026-11-23 · Hidráulica: ¿mejora o no?
+- Hecho: análisis de la hidráulica para el v0. Ficha de prueba `pruebas/2026-11-23-mckibben-hidraulico-vs-neumatico.md` con 8 mediciones (fuerza, contracción, histéresis, rigidez, respuesta, fuerza residual apagado, masa, fugas) y criterios de decisión.
+- Decidido: nada de motores hidráulicos rotativos (no son biomiméticos). El v0 y el codo siguen con el actuador v1. La hidráulica se prueba como McKibben, junto al neumático y en el mismo banco.
+- Pendiente: hacer la prueba. Si el hidráulico pasa los criterios, estudiar un híbrido: hidráulica en los músculos grandes del hombro y actuador v1 en el resto.
+
 ## 2026-11-23 · Reorganización en hardware/ y software/
 - Hecho: `cad/` y `solidworks-mcp/` pasan a `hardware/`. Se ajustaron las rutas de `mallas.py` y `inserciones.py` (escriben y leen en `software/simulador/modelo3d/`) y de `.mcp.json`. Nuevo entorno Python del conector en `hardware/solidworks-mcp/.venv`.
 - Decidido: los datos compartidos con el software viven en `../INTERFAZ.md`.

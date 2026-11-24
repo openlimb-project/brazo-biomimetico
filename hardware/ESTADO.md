@@ -21,11 +21,13 @@ Datos compartidos con el software: [`../INTERFAZ.md`](../INTERFAZ.md) · Histori
 - Banco de pruebas del reclutamiento: haces de músculos neumáticos tipo McKibben (2026-11-16).
 - El codo biomimético es la primera articulación que se construirá (2026-11-16).
 - `cad/generador/param.py` es la fuente de verdad: no se editan las piezas a mano.
+- No se usan motores hidráulicos rotativos. La hidráulica solo se estudia como músculo McKibben en el banco de pruebas, y el v0 mantiene el actuador v1 hasta tener datos (2026-11-23).
 
 ## Pendientes
 
 - [ ] Prototipo físico del codo.
 - [ ] Banco de pruebas McKibben.
+  - [ ] Comparar McKibben hidráulico frente a neumático: ficha en `pruebas/2026-11-23-mckibben-hidraulico-vs-neumatico.md`.
 - [ ] Añadir un pectoral real al modelo (ver el problema del hombro en `INTERFAZ.md`).
 - [ ] Aclarar la masa del modelo (1 585 g frente a 1 326 g sin mano).
 - [ ] Seis experimentos propuestos en los apuntes parte 3, ninguno empezado.
